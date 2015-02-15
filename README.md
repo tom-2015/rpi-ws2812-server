@@ -11,7 +11,7 @@ On the raspberry you open a terminal window and type following commands:
 * sudo chmod +x ws2812svr
 
 #Testing
-Hook up your LEDs to the PWM output of the Raspberry Pi and start the program:
+Connect your LEDs to the PWM output of the Raspberry Pi and start the program:
 
 * sudo ./ws2812svr
 
