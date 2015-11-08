@@ -224,7 +224,7 @@ void setup_ledstring(char * args){
 					ledstring.channel[1].brightness=atoi(value);
 				}
 			}
-			args++;
+			//args++;
 		}
 	}
 	
@@ -237,6 +237,22 @@ void setup_ledstring(char * args){
         return;
     }
 	
+}
+
+//prints channel settings
+void print_settings(){
+    printf("Frequency: %d.\n",ledstring.freq);
+    printf("DMA num: %d.\n",ledstring.dmanum);
+	printf("Channel 1:\n");
+    printf("    GPIO: %d\n", ledstring.channel[0].gpionum);
+	printf("    Invert: %d\n",ledstring.channel[0].invert);
+	printf("    Count: %d\n",ledstring.channel[0].count);
+	printf("    Brightness: %d\n",ledstring.channel[0].brightness);
+	printf("Channel 2:\n");
+    printf("    GPIO: %d\n", ledstring.channel[1].gpionum);
+	printf("    Invert: %d\n",ledstring.channel[1].invert);
+	printf("    Count: %d\n",ledstring.channel[1].count);
+	printf("    Brightness: %d\n",ledstring.channel[1].brightness);
 }
 
 //sends the buffer to the leds
@@ -612,6 +628,11 @@ void execute_command(char * command_line){
             if (thread_running==0 && mode==MODE_TCP) init_thread(arg);
         }else if (strcmp(command, "setup")==0){
             setup_ledstring(arg);
+        }else if (strcmp(command, "settings")==0){
+            print_settings();
+        }else if (strcmp(command, "debug")==0){
+            if (debug) debug=0;
+            else debug=1;
         }else if (strcmp(command, "exit")==0){
             printf("Exiting.\n");
             exit_program=1;

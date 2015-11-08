@@ -1,0 +1,24 @@
+setup channels=2,channel_1_gpio=18,channel_2_gpio=13,channel_1_count=5,channel_2_count=5
+rainbow 1
+rainbow 2
+brightness 1,32
+brightness 2,32
+render 1
+render 2
+do
+    do
+       rotate 1
+       rotate 2
+       render 1
+       render 2
+       delay 100
+    loop 5
+
+    do
+       rotate 1,1,2
+       rotate 2,1,2
+       render 2
+       render 1
+       delay 100
+    loop 5
+loop
