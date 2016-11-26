@@ -13,8 +13,9 @@ On the raspberry you open a terminal window and type following commands:
 On newer Raspbian (Jessie) operating system the audio output is activated by default, you need to disable this:
 You can do this by blacklisting the sound module:
 sudo nano /etc/modprobe.d/snd-blacklist.conf
-
-*blacklist snd_bcm2835
+```
+blacklist snd_bcm2835
+```
 
 also in /boot/config.txt you comment out the audio=on parameter:
 ```
