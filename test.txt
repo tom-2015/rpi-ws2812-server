@@ -1,17 +1,19 @@
-setup channel_1_count=10
+#10 WS2812 leds on GPIO 18 (PWM0)
+setup 1,10,0
+init
 rainbow
-brightness 1,32
+global_brightness 1,32
 render
 do
     do
        rotate
        render
        delay 100
-    loop 10
+    loop 30
 
     do
        rotate 1,1,2
        render
        delay 100
-    loop 10
+    loop 30
 loop

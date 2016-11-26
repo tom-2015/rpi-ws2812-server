@@ -34,30 +34,68 @@
 
 #include "pwm.h"
 
+
 // Mapping of Pin to alternate function for PWM channel 0
-const pwm_pin_table_t pwm_pin_chan0[] = {
-    {12, 0},
-    {18,5},
-    {40,0},
-    {52,1}
+const pwm_pin_table_t pwm_pin_chan0[] =
+{
+    {
+        .pinnum = 12,
+        .altnum = 0,
+    },
+    {
+        .pinnum = 18,
+        .altnum = 5,
+    },
+    {
+        .pinnum = 40,
+        .altnum = 0,
+    },
+    {
+        .pinnum = 52,
+        .altnum = 1,
+    },
 };
 
 // Mapping of Pin to alternate function for PWM channel 1
-const pwm_pin_table_t pwm_pin_chan1[] = {
-    {13,0},
-    {19,5},
-    {41,0},
-    {45,0},
-    {53,1}
+const pwm_pin_table_t pwm_pin_chan1[] =
+{
+    {
+        .pinnum = 13,
+        .altnum = 0,
+    },
+    {
+        .pinnum = 19,
+        .altnum = 5,
+    },
+    {
+        .pinnum = 41,
+        .altnum = 0,
+    },
+    {
+        .pinnum = 45,
+        .altnum = 0,
+    },
+    {
+        .pinnum = 53,
+        .altnum = 1,
+    },
 };
 
-const pwm_pin_tables_t pwm_pin_tables[RPI_PWM_CHANNELS] = {
-    {sizeof(pwm_pin_chan0) / sizeof(pwm_pin_chan0[0]),pwm_pin_chan0},
-    {sizeof(pwm_pin_chan1) / sizeof(pwm_pin_chan1[0]),pwm_pin_chan1}
+const pwm_pin_tables_t pwm_pin_tables[RPI_PWM_CHANNELS] =
+{
+    {
+        .pins = pwm_pin_chan0,
+        .count = sizeof(pwm_pin_chan0) / sizeof(pwm_pin_chan0[0]),
+    },
+    {
+        .pins = pwm_pin_chan1,
+        .count = sizeof(pwm_pin_chan1) / sizeof(pwm_pin_chan1[0]),
+    },
 };
 
 
-int pwm_pin_alt(int chan, int pinnum){
+int pwm_pin_alt(int chan, int pinnum)
+{
     const pwm_pin_tables_t *pintable = &pwm_pin_tables[chan];
     int i;
 

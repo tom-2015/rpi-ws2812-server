@@ -6,7 +6,7 @@ $color = @$_REQUEST['color'];
 if ($color=='') $color='FF0000';
 if ($brightness==0) $brightness=32;
 
-$data  = "setup channel_1_count=10;rainbow;brightness 1,32;";
+$data  = "setup 1,10,0;init;";
 
 if ($cmd!=''){
     switch ($cmd){

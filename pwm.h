@@ -30,7 +30,7 @@
 #ifndef __PWM_H__
 #define __PWM_H__
 
-
+#include <stdint.h>
 /*
  *
  * Pin mappint of alternate pin configuration for PWM
@@ -96,11 +96,11 @@ typedef struct
     uint32_t resvd_0x1c;
     uint32_t rng2;
     uint32_t dat2;
-} __attribute__((packed)) pwm_t;
+} __attribute__((packed, aligned(4))) pwm_t;
 
 
-#define PWM                                      (0x2020c000)  // 0x7e20c000
-#define PWM_PERIPH                               (0x7e20c000)
+#define PWM_OFFSET                               (0x0020c000)
+#define PWM_PERIPH_PHYS                          (0x7e20c000)
 
 
 typedef struct
@@ -109,7 +109,7 @@ typedef struct
     int altnum;
 } pwm_pin_table_t;
 
-typedef struct 
+typedef struct
 {
     const int count;
     const pwm_pin_table_t *pins;

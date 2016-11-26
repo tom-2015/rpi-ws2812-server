@@ -15,7 +15,7 @@
  *         provided with the distribution.
  *     3.  Neither the name of the owner nor the names of its contributors may be used to endorse
  *         or promote products derived from this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
  * FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE
@@ -39,19 +39,24 @@
 #include <sys/mman.h>
 #include <signal.h>
 
+#include "mailbox.h"
 #include "clk.h"
 #include "gpio.h"
 #include "dma.h"
 #include "pwm.h"
+#include "rpihw.h"
 
 #include "ws2811.h"
 
 
+#define BUS_TO_PHYS(x)                           ((x)&~0xC0000000)
+
 #define OSC_FREQ                                 19200000   // crystal frequency
 
-/* 3 colors, 8 bits per byte, 3 symbols per bit + 55uS low for reset signal */
+/* 4 colors (R, G, B + W), 8 bits per byte, 3 symbols per bit + 55uS low for reset signal */
+#define LED_COLOURS                              4
 #define LED_RESET_uS                             55
-#define LED_BIT_COUNT(leds, freq)                ((leds * 3 * 8 * 3) + ((LED_RESET_uS * \
+#define LED_BIT_COUNT(leds, freq)                ((leds * LED_COLOURS * 8 * 3) + ((LED_RESET_uS * \
                                                   (freq * 3)) / 1000000))
 
 // Pad out to the nearest uint32 + 32-bits for idle low/high times the number of channels
@@ -61,8 +66,19 @@
 #define SYMBOL_HIGH                              0x6  // 1 1 0
 #define SYMBOL_LOW                               0x4  // 1 0 0
 
-#define ARRAY_SIZE(stuff)                        (sizeof(stuff) / sizeof(stuff[0]))
 
+// We use the mailbox interface to request memory from the VideoCore.
+// This lets us request one physically contiguous chunk, find its
+// physical address, and map it 'uncached' so that writes from this
+// code are immediately visible to the DMA controller.  This struct
+// holds data relevant to the mailbox interface.
+typedef struct videocore_mbox {
+    int handle;             /* From mbox_open() */
+    unsigned mem_ref;       /* From mem_alloc() */
+    unsigned bus_addr;      /* From mem_lock() */
+    unsigned size;          /* Size of allocation */
+    uint8_t *virt_addr;     /* From mapmem() */
+} videocore_mbox_t;
 
 typedef struct ws2811_device
 {
@@ -71,16 +87,11 @@ typedef struct ws2811_device
     volatile pwm_t *pwm;
     volatile dma_cb_t *dma_cb;
     uint32_t dma_cb_addr;
-    dma_page_t page_head;
     volatile gpio_t *gpio;
     volatile cm_pwm_t *cm_pwm;
+    videocore_mbox_t mbox;
     int max_count;
 } ws2811_device_t;
-
-
-// ARM gcc built-in function, fortunately works when root w/virtual addrs
-void __clear_cache(char *begin, char *end);
-
 
 /**
  * Iterate through the channels and find the largest led count.
@@ -105,61 +116,6 @@ static int max_channel_led_count(ws2811_t *ws2811)
 }
 
 /**
- * Map a physical address and length into userspace virtual memory.
- *
- * @param    phys  Physical 32-bit address of device registers.
- * @param    len   Length of mapped region.
- *
- * @returns  Virtual address pointer to physical memory region, NULL on error.
- */
-static void *map_device(const uint32_t phys, const uint32_t len)
-{
-    uint32_t start_page_addr = phys & PAGE_MASK;
-    uint32_t end_page_addr = (phys + len) & PAGE_MASK;
-    uint32_t pages = end_page_addr - start_page_addr + 1;
-    int fd = open("/dev/mem", O_RDWR | O_SYNC);
-    void *virt;
-
-    if (fd < 0)
-    {
-        perror("Can't open /dev/mem");
-        close(fd);
-        return NULL;
-    }
-
-    virt = mmap(NULL, PAGE_SIZE * pages, PROT_READ | PROT_WRITE, MAP_SHARED, fd,
-                start_page_addr);
-    if (virt == MAP_FAILED)
-    {
-        perror("map_device() mmap() failed");
-        close(fd);
-        return NULL;
-    }
-
-    close(fd);
-
-    return (void *)(((uint8_t *)virt) + PAGE_OFFSET(phys));
-}
-
-/**
- * Unmap a physical address and length from virtual memory.
- *
- * @param    addr  Virtual address pointer of device registers.
- * @param    len   Length of mapped region.
- *
- * @returns  None
- */
-static void unmap_device(volatile void *addr, const uint32_t len)
-{
-    uint32_t virt = (uint32_t)addr;
-    uint32_t start_page_addr = virt & PAGE_MASK;
-    uint32_t end_page_addr = (virt + len) & PAGE_MASK;
-    uint32_t pages = end_page_addr - start_page_addr + 1;
-
-    munmap((void *)addr, PAGE_SIZE * pages);
-}
-
-/**
  * Map all devices into userspace memory.
  *
  * @param    ws2811  ws2811 instance pointer.
@@ -169,32 +125,36 @@ static void unmap_device(volatile void *addr, const uint32_t len)
 static int map_registers(ws2811_t *ws2811)
 {
     ws2811_device_t *device = ws2811->device;
-    uint32_t dma_addr = dmanum_to_phys(ws2811->dmanum);
+    const rpi_hw_t *rpi_hw = ws2811->rpi_hw;
+    uint32_t base = ws2811->rpi_hw->periph_base;
+    uint32_t dma_addr;
 
+    dma_addr = dmanum_to_offset(ws2811->dmanum);
     if (!dma_addr)
     {
         return -1;
     }
+    dma_addr += rpi_hw->periph_base;
 
-    device->dma = (volatile dma_t*) map_device(dma_addr, sizeof(dma_t));
+    device->dma = mapmem(dma_addr, sizeof(dma_t));
     if (!device->dma)
     {
         return -1;
     }
 
-    device->pwm = (volatile pwm_t*) map_device(PWM, sizeof(pwm_t));
+    device->pwm = mapmem(PWM_OFFSET + base, sizeof(pwm_t));
     if (!device->pwm)
     {
         return -1;
     }
 
-    device->gpio = (volatile gpio_t*) map_device(GPIO, sizeof(gpio_t));
+    device->gpio = mapmem(GPIO_OFFSET + base, sizeof(gpio_t));
     if (!device->gpio)
     {
         return -1;
     }
 
-    device->cm_pwm = (volatile cm_pwm_t*) map_device(CM_PWM, sizeof(cm_pwm_t));
+    device->cm_pwm = mapmem(CM_PWM_OFFSET + base, sizeof(cm_pwm_t));
     if (!device->cm_pwm)
     {
         return -1;
@@ -216,22 +176,22 @@ static void unmap_registers(ws2811_t *ws2811)
 
     if (device->dma)
     {
-        unmap_device(device->dma, sizeof(dma_t));
+        unmapmem((void *)device->dma, sizeof(dma_t));
     }
 
     if (device->pwm)
     {
-        unmap_device(device->pwm, sizeof(pwm_t));
+        unmapmem((void *)device->pwm, sizeof(pwm_t));
     }
 
     if (device->cm_pwm)
     {
-        unmap_device(device->cm_pwm, sizeof(cm_pwm_t));
+        unmapmem((void *)device->cm_pwm, sizeof(cm_pwm_t));
     }
 
     if (device->gpio)
     {
-        unmap_device(device->gpio, sizeof(gpio_t));
+        unmapmem((void *)device->gpio, sizeof(gpio_t));
     }
 }
 
@@ -243,38 +203,13 @@ static void unmap_registers(ws2811_t *ws2811)
  *
  * @returns  Bus address for use by DMA.
  */
-static uint32_t addr_to_bus(const volatile void *addr)
+static uint32_t addr_to_bus(ws2811_device_t *device, const volatile void *virt)
 {
-    char filename[40];
-    uint64_t pfn;
-    int fd;
+    videocore_mbox_t *mbox = &device->mbox;
 
-    sprintf(filename, "/proc/%d/pagemap", getpid());
-    fd = open(filename, O_RDONLY);
-    if (fd < 0)
-    {
-        perror("addr_to_bus() can't open pagemap");
-        return ~0UL;
-    }
+    uint32_t offset = (uint8_t *)virt - mbox->virt_addr;
 
-    if (lseek(fd, ((uint32_t)addr >> 12) << 3, SEEK_SET) != 
-        ((uint32_t)addr >> 12) << 3)
-    {
-        perror("addr_to_bus() lseek() failed");
-        close(fd);
-        return ~0UL;
-    }
-
-    if (read(fd, &pfn, sizeof(pfn)) != sizeof(pfn))
-    {
-        perror("addr_to_bus() read() failed");
-        close(fd);
-        return ~0UL;
-    }
-
-    close(fd);
-
-    return ((uint32_t)pfn << 12) | 0x40000000 | ((uint32_t)addr & 0xfff);
+    return mbox->bus_addr + offset;
 }
 
 /**
@@ -317,7 +252,6 @@ static int setup_pwm(ws2811_t *ws2811)
     volatile cm_pwm_t *cm_pwm = device->cm_pwm;
     int maxcount = max_channel_led_count(ws2811);
     uint32_t freq = ws2811->freq;
-    dma_page_t *page;
     int32_t byte_count;
 
     stop_pwm(ws2811);
@@ -344,44 +278,30 @@ static int setup_pwm(ws2811_t *ws2811)
     usleep(10);
     pwm->ctl = RPI_PWM_CTL_USEF1 | RPI_PWM_CTL_MODE1 |
                RPI_PWM_CTL_USEF2 | RPI_PWM_CTL_MODE2;
+    if (ws2811->channel[0].invert)
+    {
+        pwm->ctl |= RPI_PWM_CTL_POLA1;
+    }
+    if (ws2811->channel[1].invert)
+    {
+        pwm->ctl |= RPI_PWM_CTL_POLA2;
+    }
     usleep(10);
     pwm->ctl |= RPI_PWM_CTL_PWEN1 | RPI_PWM_CTL_PWEN2;
 
-    // Initialize the DMA control blocks to chain together all the DMA pages
-    page = &device->page_head;
+    // Initialize the DMA control block
     byte_count = PWM_BYTE_COUNT(maxcount, freq);
-    while ((page = dma_page_next(&device->page_head, page)) &&
-           byte_count)
-    {
-        int32_t page_bytes = PAGE_SIZE < byte_count ? PAGE_SIZE : byte_count;
+    dma_cb->ti = RPI_DMA_TI_NO_WIDE_BURSTS |  // 32-bit transfers
+                 RPI_DMA_TI_WAIT_RESP |       // wait for write complete
+                 RPI_DMA_TI_DEST_DREQ |       // user peripheral flow control
+                 RPI_DMA_TI_PERMAP(5) |       // PWM peripheral
+                 RPI_DMA_TI_SRC_INC;          // Increment src addr
 
-        dma_cb->ti = RPI_DMA_TI_NO_WIDE_BURSTS |  // 32-bit transfers
-                     RPI_DMA_TI_WAIT_RESP |       // wait for write complete
-                     RPI_DMA_TI_DEST_DREQ |       // user peripheral flow control
-                     RPI_DMA_TI_PERMAP(5) |       // PWM peripheral
-                     RPI_DMA_TI_SRC_INC;          // Increment src addr
+    dma_cb->source_ad = addr_to_bus(device, device->pwm_raw);
 
-        dma_cb->source_ad = addr_to_bus(page->addr);
-        if (dma_cb->source_ad == ~0L)
-        {
-            return -1;
-        }
-
-        dma_cb->dest_ad = (uint32_t)&((pwm_t *)PWM_PERIPH)->fif1;
-        dma_cb->txfr_len = page_bytes;
-        dma_cb->stride = 0;
-        dma_cb->nextconbk = addr_to_bus(dma_cb + 1);
-
-        byte_count -= page_bytes;
-        if (!dma_page_next(&device->page_head, page))
-        {
-            break;
-        }
-
-        dma_cb++;
-    }
-
-    // Terminate the final control block to stop DMA
+    dma_cb->dest_ad = (uint32_t)&((pwm_t *)PWM_PERIPH_PHYS)->fif1;
+    dma_cb->txfr_len = byte_count;
+    dma_cb->stride = 0;
     dma_cb->nextconbk = 0;
 
     dma->cs = 0;
@@ -404,9 +324,16 @@ static void dma_start(ws2811_t *ws2811)
     volatile dma_t *dma = device->dma;
     uint32_t dma_cb_addr = device->dma_cb_addr;
 
+    dma->cs = RPI_DMA_CS_RESET;
+    usleep(10);
+
+    dma->cs = RPI_DMA_CS_INT | RPI_DMA_CS_END;
+    usleep(10);
+
     dma->conblk_ad = dma_cb_addr;
+    dma->debug = 7; // clear debug error flags
     dma->cs = RPI_DMA_CS_WAIT_OUTSTANDING_WRITES |
-              RPI_DMA_CS_PANIC_PRIORITY(15) | 
+              RPI_DMA_CS_PANIC_PRIORITY(15) |
               RPI_DMA_CS_PRIORITY(15) |
               RPI_DMA_CS_ACTIVE;
 }
@@ -444,8 +371,8 @@ static int gpio_init(ws2811_t *ws2811)
 }
 
 /**
- * Initialize the PWM DMA buffer with all zeros for non-inverted operation, or
- * ones for inverted operation.  The DMA buffer length is assumed to be a word 
+ * Initialize the PWM DMA buffer with all zeros, inverted operation will be
+ * handled by hardware.  The DMA buffer length is assumed to be a word
  * multiple.
  *
  * @param    ws2811  ws2811 instance pointer.
@@ -462,20 +389,11 @@ void pwm_raw_init(ws2811_t *ws2811)
 
     for (chan = 0; chan < RPI_PWM_CHANNELS; chan++)
     {
-        ws2811_channel_t *channel = &ws2811->channel[chan];
         int i, wordpos = chan;
 
         for (i = 0; i < wordcount; i++)
         {
-            if (channel->invert)
-            {
-                pwm_raw[wordpos] = ~0L;
-            }
-            else
-            {
-                pwm_raw[wordpos] = 0x0;
-            }
-
+            pwm_raw[wordpos] = 0x0;
             wordpos += 2;
         }
     }
@@ -490,7 +408,9 @@ void pwm_raw_init(ws2811_t *ws2811)
  */
 void ws2811_cleanup(ws2811_t *ws2811)
 {
+    ws2811_device_t *device = ws2811->device;
     int chan;
+
     for (chan = 0; chan < RPI_PWM_CHANNELS; chan++)
     {
         if (ws2811->channel[chan].leds)
@@ -500,23 +420,19 @@ void ws2811_cleanup(ws2811_t *ws2811)
         ws2811->channel[chan].leds = NULL;
     }
 
-    ws2811_device_t *device = ws2811->device;
+    if (device->mbox.handle != -1)
+    {
+        videocore_mbox_t *mbox = &device->mbox;
+
+        unmapmem(mbox->virt_addr, mbox->size);
+        mem_unlock(mbox->handle, mbox->mem_ref);
+        mem_free(mbox->handle, mbox->mem_ref);
+        mbox_close(mbox->handle);
+
+        mbox->handle = -1;
+    }
+
     if (device) {
-
-        if (device->pwm_raw)
-        {
-            dma_page_free((uint8_t *)device->pwm_raw,
-                          PWM_BYTE_COUNT(max_channel_led_count(ws2811),
-                                         ws2811->freq));
-            device->pwm_raw = NULL;
-        }
-
-        if (device->dma_cb)
-        {
-            dma_page_free((dma_cb_t *)device->dma_cb, sizeof(dma_cb_t));
-            device->dma_cb = NULL;
-        }
-
         free(device);
     }
     ws2811->device = NULL;
@@ -537,17 +453,61 @@ void ws2811_cleanup(ws2811_t *ws2811)
  *
  * @returns  0 on success, -1 otherwise.
  */
-int ws2811_init(ws2811_t *ws2811)
+ws2811_return_t ws2811_init(ws2811_t *ws2811)
 {
-    ws2811_device_t *device = NULL;
-    int chan;
+    ws2811_device_t *device;
+    const rpi_hw_t *rpi_hw;
+    int chan,i;
 
-    ws2811->device = (struct ws2811_device*)malloc(sizeof(*ws2811->device));
+    ws2811->rpi_hw = rpi_hw_detect();
+    if (!ws2811->rpi_hw)
+    {
+        return WS2811_ERROR_HW_NOT_SUPPORTED;
+    }
+    rpi_hw = ws2811->rpi_hw;
+
+    ws2811->device = malloc(sizeof(*ws2811->device));
     if (!ws2811->device)
     {
-        return -1;
+        return WS2811_ERROR_OUT_OF_MEMORY;
     }
     device = ws2811->device;
+
+    // Determine how much physical memory we need for DMA
+    device->mbox.size = PWM_BYTE_COUNT(max_channel_led_count(ws2811), ws2811->freq) +
+                        sizeof(dma_cb_t);
+    // Round up to page size multiple
+    device->mbox.size = (device->mbox.size + (PAGE_SIZE - 1)) & ~(PAGE_SIZE - 1);
+
+    device->mbox.handle = mbox_open();
+    if (device->mbox.handle == -1)
+    {
+        return WS2811_ERROR_MAILBOX_DEVICE;
+    }
+
+    device->mbox.mem_ref = mem_alloc(device->mbox.handle, device->mbox.size, PAGE_SIZE,
+                                     rpi_hw->videocore_base == 0x40000000 ? 0xC : 0x4);
+    if (device->mbox.mem_ref == 0)
+    {
+        return WS2811_ERROR_OUT_OF_MEMORY;
+    }
+
+    device->mbox.bus_addr = mem_lock(device->mbox.handle, device->mbox.mem_ref);
+    if (device->mbox.bus_addr == (uint32_t) ~0UL)
+    {
+        mem_free(device->mbox.handle, device->mbox.size);
+        return WS2811_ERROR_MEM_LOCK;
+    }
+
+    device->mbox.virt_addr = mapmem(BUS_TO_PHYS(device->mbox.bus_addr), device->mbox.size);
+    if (!device->mbox.virt_addr)
+    {
+        mem_unlock(device->mbox.handle, device->mbox.mem_ref);
+        mem_free(device->mbox.handle, device->mbox.size);
+
+        ws2811_cleanup(ws2811);
+        return WS2811_ERROR_MMAP;
+    }
 
     // Initialize all pointers to NULL.  Any non-NULL pointers will be freed on cleanup.
     device->pwm_raw = NULL;
@@ -557,75 +517,67 @@ int ws2811_init(ws2811_t *ws2811)
         ws2811->channel[chan].leds = NULL;
     }
 
-    dma_page_init(&device->page_head);
-
     // Allocate the LED buffers
     for (chan = 0; chan < RPI_PWM_CHANNELS; chan++)
     {
         ws2811_channel_t *channel = &ws2811->channel[chan];
 
-        channel->leds = (ws2811_led_t*)malloc(sizeof(ws2811_led_t) * channel->count);
+        channel->leds = malloc(sizeof(ws2811_led_t) * channel->count);
         if (!channel->leds)
         {
-            goto err;
+            ws2811_cleanup(ws2811);
+            return WS2811_ERROR_OUT_OF_MEMORY;
         }
 
         memset(channel->leds, 0, sizeof(ws2811_led_t) * channel->count);
+
+        for (i=0;i<channel->count;i++) channel->leds[i].brightness=255;
+        
+        if (!channel->strip_type)
+        {
+          channel->strip_type=WS2811_STRIP_RGB;
+        }
+
+        channel->wshift = (channel->strip_type >> 24) & 0xff;
+        channel->bshift = (channel->strip_type >> 16)  & 0xff;
+        channel->gshift = (channel->strip_type >> 8)  & 0xff;
+        channel->rshift = (channel->strip_type >> 0) & 0xff;
     }
 
-    // Allocate the DMA buffer
-    device->pwm_raw = (volatile uint8_t*) dma_alloc(&device->page_head,
-                                PWM_BYTE_COUNT(max_channel_led_count(ws2811),
-                                               ws2811->freq));
-    if (!device->pwm_raw)
-    {
-        goto err;
-    }
+    device->dma_cb = (dma_cb_t *)device->mbox.virt_addr;
+    device->pwm_raw = (uint8_t *)device->mbox.virt_addr + sizeof(dma_cb_t);
 
     pwm_raw_init(ws2811);
 
-    // Allocate the DMA control block
-    device->dma_cb = dma_desc_alloc((PWM_BYTE_COUNT(max_channel_led_count(ws2811),
-                                    ws2811->freq) / PAGE_SIZE));
-    if (!device->dma_cb)
-    {
-        goto err;
-    }
     memset((dma_cb_t *)device->dma_cb, 0, sizeof(dma_cb_t));
 
     // Cache the DMA control block bus address
-    device->dma_cb_addr = addr_to_bus(device->dma_cb);
-    if (device->dma_cb_addr == ~0L)
-    {
-        goto err;
-    }
+    device->dma_cb_addr = addr_to_bus(device, device->dma_cb);
 
     // Map the physical registers into userspace
     if (map_registers(ws2811))
     {
-        goto err;
+        ws2811_cleanup(ws2811);
+        return WS2811_ERROR_MAP_REGISTERS;
     }
 
     // Initialize the GPIO pins
     if (gpio_init(ws2811))
     {
         unmap_registers(ws2811);
-        goto err;
+        ws2811_cleanup(ws2811);
+        return WS2811_ERROR_GPIO_INIT;
     }
 
     // Setup the PWM, clocks, and DMA
     if (setup_pwm(ws2811))
     {
         unmap_registers(ws2811);
-        goto err;
+        ws2811_cleanup(ws2811);
+        return WS2811_ERROR_PWM_SETUP;
     }
 
-    return 0;
-
-err:
-    ws2811_cleanup(ws2811);
-
-    return -1;
+    return WS2811_SUCCESS;
 }
 
 /**
@@ -652,7 +604,7 @@ void ws2811_fini(ws2811_t *ws2811)
  *
  * @returns  0 on success, -1 on DMA competion error
  */
-int ws2811_wait(ws2811_t *ws2811)
+ws2811_return_t ws2811_wait(ws2811_t *ws2811)
 {
     volatile dma_t *dma = ws2811->device->dma;
 
@@ -665,7 +617,7 @@ int ws2811_wait(ws2811_t *ws2811)
     if (dma->cs & RPI_DMA_CS_ERROR)
     {
         fprintf(stderr, "DMA Error: %08x\n", dma->debug);
-        return -1;
+        return WS2811_ERROR_DMA;
     }
 
     return 0;
@@ -679,29 +631,40 @@ int ws2811_wait(ws2811_t *ws2811)
  *
  * @returns  None
  */
-int ws2811_render(ws2811_t *ws2811)
+ws2811_return_t ws2811_render(ws2811_t *ws2811)
 {
     volatile uint8_t *pwm_raw = ws2811->device->pwm_raw;
-    int maxcount = max_channel_led_count(ws2811);
     int bitpos = 31;
-    int i, j, k, l, chan;
+    int i, k, l, chan;
+    unsigned j;
+    ws2811_return_t ret;
 
     for (chan = 0; chan < RPI_PWM_CHANNELS; chan++)         // Channel
     {
         ws2811_channel_t *channel = &ws2811->channel[chan];
         int wordpos = chan;
-        int scale   = (channel->brightness & 0xff) + 1;
+        const int scale = (channel->brightness & 0xff) + 1;
 
         for (i = 0; i < channel->count; i++)                // Led
         {
+            const int brightness = scale * (channel->leds[i].brightness & 0xff) + 1;
             uint8_t color[] =
             {
-                (((channel->leds[i] >> 8)  & 0xff) * scale) >> 8, // green
-                (((channel->leds[i] >> 16) & 0xff) * scale) >> 8, // red
-                (((channel->leds[i] >> 0)  & 0xff) * scale) >> 8, // blue
+                (((channel->leds[i].color >> channel->rshift) & 0xff) * brightness) >> 16, // red
+                (((channel->leds[i].color >> channel->gshift) & 0xff) * brightness) >> 16, // green
+                (((channel->leds[i].color >> channel->bshift) & 0xff) * brightness) >> 16, // blue
+                (((channel->leds[i].color >> channel->wshift) & 0xff) * brightness) >> 16, // white
             };
+            uint8_t array_size = 3; // Assume 3 color LEDs, RGB
 
-            for (j = 0; j < ARRAY_SIZE(color); j++)        // Color
+            // If our shift mask includes the highest nibble, then we have 4
+            // LEDs, RBGW.
+            if (channel->strip_type & SK6812_SHIFT_WMASK)
+            {
+                array_size = 4;
+            }
+
+            for (j = 0; j < array_size; j++)               // Color
             {
                 for (k = 7; k >= 0; k--)                   // Bit
                 {
@@ -710,11 +673,6 @@ int ws2811_render(ws2811_t *ws2811)
                     if (color[j] & (1 << k))
                     {
                         symbol = SYMBOL_HIGH;
-                    }
-
-                    if (channel->invert)
-                    {
-                        symbol = ~symbol & 0x7;
                     }
 
                     for (l = 2; l >= 0; l--)               // Symbol
@@ -741,14 +699,10 @@ int ws2811_render(ws2811_t *ws2811)
         }
     }
 
-    // Ensure the CPU data cache is flushed before the DMA is started.
-    __clear_cache((char *)pwm_raw,
-                  (char *)&pwm_raw[PWM_BYTE_COUNT(maxcount, ws2811->freq)]);
-
     // Wait for any previous DMA operation to complete.
-    if (ws2811_wait(ws2811))
+    if ((ret = ws2811_wait(ws2811)) != WS2811_SUCCESS)
     {
-        return -1;
+        return ret;
     }
 
     dma_start(ws2811);
@@ -756,3 +710,15 @@ int ws2811_render(ws2811_t *ws2811)
     return 0;
 }
 
+const char * ws2811_get_return_t_str(const ws2811_return_t state)
+{
+    const int index = -state;
+    static const char * const ret_state_str[] = { WS2811_RETURN_STATES(WS2811_RETURN_STATES_STRING) };
+
+    if (index < sizeof(ret_state_str) / sizeof(ret_state_str[0]))
+    {
+        return ret_state_str[index];
+    }
+
+    return "";
+}
