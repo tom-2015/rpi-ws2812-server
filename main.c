@@ -243,13 +243,13 @@ void global_brightness(char * args){
     if (args!=NULL){
         char value[MAX_VAL_LEN];
         args = read_val(args, value, MAX_VAL_LEN);
-        int channel = atoi(args)-1;
+        int channel = atoi(value)-1;
         if (*args!=0){
             args = read_val(args, value, MAX_VAL_LEN);
             int brightness = atoi(value);
             if (is_valid_channel_number(channel)){
                 ledstring.channel[channel].brightness=brightness;
-                if(debug) printf("Global brightness %d, %d", channel, brightness);
+                if(debug) printf("Global brightness %d, %d\n", channel, brightness);
             }else{
                 fprintf(stderr,"Invalid channel number, did you call setup and init?\n");
             }
@@ -1180,11 +1180,13 @@ int main(int argc, char *argv[]){
     input_file = stdin; //by default we read from console, stdin
     mode = MODE_STDIN;
     
-	if (argc>1){
-        if (strcmp(argv[1], "-p")==0){ //use a named pipe, creates a file (by default in /dev/ws281x) which you can write commands to: echo "command..." > /dev/ws281x
-            if (argc>2){
-                named_pipe_file = (char*)malloc(strlen(argv[2])+1);
-                strcpy(named_pipe_file,argv[2]);
+	int arg_idx=1;
+	while (argc>arg_idx){
+        if (strcmp(argv[arg_idx], "-p")==0){ //use a named pipe, creates a file (by default in /dev/ws281x) which you can write commands to: echo "command..." > /dev/ws281x
+            if (argc>arg_idx+1){
+                named_pipe_file = (char*)malloc(strlen(argv[arg_idx+1])+1);
+                strcpy(named_pipe_file,argv[arg_idx+1]);
+				arg_idx++;
             }else{
                 named_pipe_file = (char*)malloc(strlen(DEFAULT_DEVICE_FILE)+1);
                 strcpy(named_pipe_file, DEFAULT_DEVICE_FILE);
@@ -1195,19 +1197,21 @@ int main(int argc, char *argv[]){
             chmod(named_pipe_file,0777);
             input_file = fopen(named_pipe_file, "r");
             mode  = MODE_NAMED_PIPE;
-        }else if (strcmp(argv[1], "-f")==0){ //read commands / data from text file
-            if (argc>2){
-                input_file = fopen(argv[2], "r");
-                printf("Opening %s.", argv[2]);
+        }else if (strcmp(argv[arg_idx], "-f")==0){ //read commands / data from text file
+            if (argc>arg_idx+1){
+                input_file = fopen(argv[arg_idx+1], "r");
+                printf("Opening %s.", argv[arg_idx+1]);
+				arg_idx++;
             }else{
                 printf("Error you must enter a file name after -f option\n");
                 exit(1);
             }
             mode = MODE_FILE;
-        }else if (strcmp(argv[1], "-tcp")==0){ //open up tcp ip port and read commands from there
-            if (argc>2){
-                int port = atoi(argv[2]);
+        }else if (strcmp(argv[arg_idx], "-tcp")==0){ //open up tcp ip port and read commands from there
+            if (argc>arg_idx+1){
+                int port = atoi(argv[arg_idx+1]);
                 if (port==0) port=9999;
+				arg_idx++;
                 printf("Listening on %d.\n", port);
                 start_tcpip(port);
             }else{
@@ -1215,7 +1219,10 @@ int main(int argc, char *argv[]){
                 exit(1);
             }
             mode = MODE_TCP;
-        }
+        }else if (strcmp(argv[arg_idx], "-d")==0){ //turn debug on
+			debug=1;
+		}
+		arg_idx++;
 	}
 	
 	if ((mode == MODE_FILE || mode == MODE_NAMED_PIPE) && input_file==NULL){
