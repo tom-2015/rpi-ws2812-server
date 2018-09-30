@@ -9,6 +9,7 @@ On the raspberry you open a terminal window and type following commands:
 * cd rpi-ws2812-server
 * make
 * sudo chmod +x ws2812svr
+
 Newer versions require libjpeg-dev and libpng-dev for reading PNG and JPEG images.
 If you don't want to use JPEG or PNG you can disable this using:
 * make NO_JPEG=1 NO_PNG=1
