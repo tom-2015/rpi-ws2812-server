@@ -1,5 +1,5 @@
 #10 WS2812 leds on GPIO 18 (PWM0)
-setup 1,10,0
+setup 1,10,5
 init
 rainbow
 global_brightness 1,32

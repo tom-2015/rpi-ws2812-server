@@ -37,19 +37,19 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
-#include <sys/types.h>
+#include <sys/sysmacros.h>
 #include <sys/stat.h>
 
 #include "mailbox.h"
 
 
-void *mapmem(uint32_t base, uint32_t size) {
+void *mapmem(uint32_t base, uint32_t size, const char *mem_dev) {
     uint32_t pagemask = ~0UL ^ (getpagesize() - 1);
     uint32_t offsetmask = getpagesize() - 1;
     int mem_fd;
     void *mem;
 
-    mem_fd = open("/dev/mem", O_RDWR | O_SYNC);
+    mem_fd = open(mem_dev, O_RDWR | O_SYNC);
     if (mem_fd < 0) {
        perror("Can't open /dev/mem");
        return NULL;

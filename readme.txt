@@ -141,6 +141,36 @@ Here is a list of commands you can type or send to the program. All commands hav
 		<start>,						#start at this led
 		<len>,							#number of leds to fill with a random color, default is channel count
 		<RGBWL>							#color to use in random can be R = red, G = green, B = blue, W = White, L = brightness also combination is possible like RGBW or RL
+		
+*readjpg command can read the pixels from a JPEG file and fill them into the LEDs of a channel
+    readjpg
+    	<channel>,						#channel number to load pixels to
+		<FILE>,							#file location of the JPG without any "" cannot contain a ,
+		<start>,						#start position, start loading at this LED in channel (default 0)
+		<len>,							#load this ammount of pixel/LEDs	(default is channel count or led count)
+		<offset>,						#start at pixel offset in JPG file (default is 0)
+		<OR AND XOR NOT =>				#operator to use, use NOT to reverse image (default is =)
+		
+*readpng command can read the pixels from a PNG file and fill them into the LEDs of a channel
+	readpng
+		<channel>,						#channel number to load pixels to
+		<FILE>,							#file location of the PNG file without any "" cannot contain a ,
+		<BACKCOLOR>,					#the color to use for background in case of a transparent image 
+										#(default is the PNG image backcolor = P), if BACKCOLOR = W the alpha channel will be used for the W in RGBW LED strips
+		<start>,						#start position, start loading at this LED in channel (default 0)
+		<len>,							#load this ammount of pixel/LEDs	(default is channel count or led count)
+		<offset>,						#start at pixel offset in JPG file (default is 0)
+		<OR AND XOR =>					#operator to use, use NOT to reverse image (default is =)
+
+*blink command makes a group of leds blink between 2 given colors
+	blink
+		<channel>,						#channel number to change
+		<color1>,						#first color to use
+		<color2>,						#second color
+		<delay>,						#delay in ms between change from color1 to color2
+		<blink_count>,					#number of changes between color1 and color2
+		<startled>,						#start at this led position
+		<len>							#number of LEDs to blink starting at startled
 
 #Special keywords
 You can add 'do ... loop' to repeat commands when using a file or TCP connection.
@@ -188,3 +218,5 @@ function send_to_leds ($data){
   Loads commands from text_file.txt
 * sudo ./ws2812svr -p /dev/ws281x  
   Creates a file called `/dev/ws281x` where you can write you commands to with any other programming language (do-loop not supported here).
+* sudo ./ws2812svr -i "setup 1,4,5;init;"
+  Initializes with command setup 1,4,5  and command init

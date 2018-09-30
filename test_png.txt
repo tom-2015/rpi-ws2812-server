@@ -1,0 +1,10 @@
+#loads test_1.png, wait 1 sec, load test_2.png
+setup 1,4,5
+init
+do
+  do
+    readpng 1,test_{1}.png
+    render
+    delay 1000
+  loop 2
+loop

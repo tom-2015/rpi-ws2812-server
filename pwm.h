@@ -30,7 +30,7 @@
 #ifndef __PWM_H__
 #define __PWM_H__
 
-#include <stdint.h>
+
 /*
  *
  * Pin mappint of alternate pin configuration for PWM

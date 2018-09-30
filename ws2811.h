@@ -35,7 +35,6 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
 #include "rpihw.h"
 #include "pwm.h"
 
@@ -66,19 +65,16 @@ extern "C" {
 
 struct ws2811_device;
 
-typedef unsigned int unint32_t;
-#define uint32_t unsigned int
-//typedef uint32_t ws2811_led_t;                   //< 0xWWRRGGBB
-
 typedef struct
 {
     uint32_t color;
     uint32_t brightness;
 }ws2811_led_t;
 
+
 typedef struct
 {
-    int color_size;                              //3 = RGB, 4 = RGBW
+	int color_size;                              //3 = RGB, 4 = RGBW
     int gpionum;                                 //< GPIO Pin with PWM alternate function, 0 if unused
     int invert;                                  //< Invert output signal
     int count;                                   //< Number of LEDs, 0 if channel is unused
@@ -89,10 +85,12 @@ typedef struct
     uint8_t rshift;                              //< Red shift value
     uint8_t gshift;                              //< Green shift value
     uint8_t bshift;                              //< Blue shift value
+    uint8_t *gamma;                              //< Gamma correction table
 } ws2811_channel_t;
 
 typedef struct
 {
+    uint64_t render_wait_time;                   //< time in µs before the next render can run
     struct ws2811_device *device;                //< Private data for driver use
     const rpi_hw_t *rpi_hw;                      //< RPI Hardware Information
     uint32_t freq;                               //< Required output frequency
@@ -111,7 +109,11 @@ typedef struct
             X(-7, WS2811_ERROR_GPIO_INIT, "Unable to initialize GPIO"),                     \
             X(-8, WS2811_ERROR_PWM_SETUP, "Unable to initialize PWM"),                      \
             X(-9, WS2811_ERROR_MAILBOX_DEVICE, "Failed to create mailbox device"),          \
-            X(-10, WS2811_ERROR_DMA, "DMA error")                                           \
+            X(-10, WS2811_ERROR_DMA, "DMA error"),                                          \
+            X(-11, WS2811_ERROR_ILLEGAL_GPIO, "Selected GPIO not possible"),                \
+            X(-12, WS2811_ERROR_PCM_SETUP, "Unable to initialize PCM"),                     \
+            X(-13, WS2811_ERROR_SPI_SETUP, "Unable to initialize SPI"),                     \
+            X(-14, WS2811_ERROR_SPI_TRANSFER, "SPI transfer error")                         \
 
 #define WS2811_RETURN_STATES_ENUM(state, name, str) name = state
 #define WS2811_RETURN_STATES_STRING(state, name, str) str

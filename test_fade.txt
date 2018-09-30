@@ -1,7 +1,7 @@
 #channel 1 uses GPIO 1  (broadcom 18)
 #channel 2 uses GPIO 24 (broadcom 19)
 setup 1,30,7,0,255,18
-setup 2,10,0,0,255,19
+setup 2,10,5,0,255,19
 init
 fill 1,FF000000
 fill 2,FF000000

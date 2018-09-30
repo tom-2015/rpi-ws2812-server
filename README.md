@@ -4,11 +4,14 @@ This is a small program for driving the WS281x (a.k.a. [NeoPixel](https://www.sp
 #Installation
 On the raspberry you open a terminal window and type following commands:
 * sudo apt-get update
-* sudo apt-get install gcc make git
+* sudo apt-get install gcc make git libjpeg-dev libpng-dev
 * git clone https://github.com/tom-2015/rpi-ws2812-server.git
 * cd rpi-ws2812-server
 * make
 * sudo chmod +x ws2812svr
+Newer versions require libjpeg-dev and libpng-dev for reading PNG and JPEG images.
+If you don't want to use JPEG or PNG you can disable this using:
+* make NO_JPEG=1 NO_PNG=1
 
 On newer Raspbian (Jessie) operating system the audio output is activated by default, you need to disable this:
 You can do this by blacklisting the sound module:
@@ -155,6 +158,42 @@ delay
 		<RGBWL>							#color to use in random can be R = red, G = green, B = blue, W = White, L = brightness also combination is possible like RGBW or RL
 ```
 
+*readjpg command can read the pixels from a JPEG file and fill them into the LEDs of a channel
+```
+    readjpg
+    	<channel>,						#channel number to load pixels to
+		<FILE>,							#file location of the JPG without any "" cannot contain a ,
+		<start>,						#start position, start loading at this LED in channel (default 0)
+		<len>,							#load this ammount of pixel/LEDs	(default is channel count or led count)
+		<offset>,						#start at pixel offset in JPG file (default is 0)
+		<OR AND XOR NOT =>				#operator to use, use NOT to reverse image (default is =)
+```
+
+*readpng command can read the pixels from a PNG file and fill them into the LEDs of a channel
+```
+	readpng
+		<channel>,						#channel number to load pixels to
+		<FILE>,							#file location of the PNG file without any "" cannot contain a ,
+		<BACKCOLOR>,					#the color to use for background in case of a transparent image 
+										#(default is the PNG image backcolor = P), if BACKCOLOR = W the alpha channel will be used for the W in RGBW LED strips
+		<start>,						#start position, start loading at this LED in channel (default 0)
+		<len>,							#load this ammount of pixel/LEDs	(default is channel count or led count)
+		<offset>,						#start at pixel offset in JPG file (default is 0)
+		<OR AND XOR =>					#operator to use, use NOT to reverse image (default is =)
+```
+
+*blink command makes a group of leds blink between 2 given colors
+```
+	blink
+		<channel>,						#channel number to change
+		<color1>,						#first color to use
+		<color2>,						#second color
+		<delay>,						#delay in ms between change from color1 to color2
+		<blink_count>,					#number of changes between color1 and color2
+		<startled>,						#start at this led position
+		<len>							#number of LEDs to blink starting at startled
+```
+
 #Special keywords
 You can add `do ... loop` to repeat commands when using a file or TCP connection.
 
@@ -206,3 +245,5 @@ function send_to_leds ($data){
   Loads commands from text_file.txt.
 * sudo ./ws2812svr -p /dev/ws281x  
   Creates a file called `/dev/ws281x` where you can write you commands to with any other programming language (do-loop not supported here).
+* sudo ./ws2812svr -i "setup 1,4,5;init;"
+  Initializes with command setup 1,4,5  and command init

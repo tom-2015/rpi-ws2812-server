@@ -28,6 +28,47 @@
 #define MODE_FILE 2
 #define MODE_TCP 3
 
+//USE_JPEG and USE_PNG is enabled through make file
+//to disable compilation of PNG / or JPEG use:
+//make PNG=0 JPEG=0
+//#define USE_JPEG 1
+//#define USE_PNG 1
+
+#ifdef USE_JPEG
+	#include "jpeglib.h"
+	#include <setjmp.h>
+	//from https://github.com/LuaDist/libjpeg/blob/master/example.c
+	struct my_error_mgr {
+	  struct jpeg_error_mgr pub;	/* "public" fields */
+
+	  jmp_buf setjmp_buffer;	/* for return to caller */
+	};
+
+	typedef struct my_error_mgr * my_error_ptr;
+
+	/*
+	 * Here's the routine that will replace the standard error_exit method:
+	 */
+
+	METHODDEF(void)
+	my_error_exit (j_common_ptr cinfo)
+	{
+	  /* cinfo->err really points to a my_error_mgr struct, so coerce pointer */
+	  my_error_ptr myerr = (my_error_ptr) cinfo->err;
+
+	  /* Always display the message. */
+	  /* We could postpone this until after returning, if we chose. */
+	  (*cinfo->err->output_message) (cinfo);
+
+	  /* Return control to the setjmp point */
+	  longjmp(myerr->setjmp_buffer, 1);
+	}
+#endif
+
+#ifdef USE_PNG
+	#include "readpng.h"
+#endif
+
 //for easy and fast converting asci hex to integer
 char hextable[256] = {
    [0 ... 255] = 0, // bit aligned access into this table is considerably
@@ -102,10 +143,32 @@ void malloc_command_line(int size){
 	command_index = 0;
 }
 
+unsigned char get_red(int color){
+	return color & 0xFF;
+}
+
+unsigned char get_green(int color){
+	return (color >> 8) & 0xFF;
+}
+
+unsigned char get_blue(int color){
+	return (color >> 16) & 0xFF;
+}
+
+unsigned char get_white(int color){
+	return (color >> 24) & 0xFF;
+}
+
 //returns a color from RGB value
 //note that the ws281x stores colors as GRB
 int color (unsigned char r, unsigned char g, unsigned char b){
 	return (b << 16) + (g << 8) + r;
+}
+
+//returns new colorcomponent based on alpha number for component1 and background component
+//all values are unsigned char 0-255
+unsigned char alpha_component(unsigned int component, unsigned int bgcomponent, unsigned int alpha){
+	return component * alpha / 255 + bgcomponent * (255-alpha)/255;
 }
 
 //returns a color from RGBW value
@@ -725,6 +788,84 @@ void fade (char * args){
     }
 }
 
+
+//makes some leds blink between 2 given colors for x times with a given delay
+//blink <channel>,<color1>,<color2>,<delay>,<blink_count>,<startled>,<len>
+void blink (char * args){
+    char value[MAX_VAL_LEN];
+	int channel=0, color1=0, color2=0xFFFFFF,delay=1000, count=10;
+	unsigned int start=0, len=0;
+    
+    if (is_valid_channel_number(channel)){
+        len = ledstring.channel[channel].count;;
+    }
+    if (args!=NULL){
+        args = read_val(args, value, MAX_VAL_LEN);
+		channel = atoi(value)-1;
+        if (is_valid_channel_number(channel)){
+            len = ledstring.channel[channel].count;;
+        }
+        if (*args!=0){
+            args = read_val(args, value, MAX_VAL_LEN);
+			if (strlen(value)>=6){
+                if (is_valid_channel_number(channel)) read_color(value, & color1, ledstring.channel[channel].color_size);
+			}else{
+				printf("Invalid color 1\n");
+			}
+            if(*args!=0){
+                args = read_val(args, value, MAX_VAL_LEN);
+				if (strlen(value)>=6){
+					if (is_valid_channel_number(channel)) read_color(value, & color2, ledstring.channel[channel].color_size);
+				}else{
+					printf("Invalid color 2\n");
+				}
+                if(*args!=0){
+                    args = read_val(args, value, MAX_VAL_LEN);
+                    delay = atoi(value);
+                    if(*args!=0){
+                        args = read_val(args, value, MAX_VAL_LEN);
+                        count = atoi(value);
+                        if(*args!=0){
+                            args = read_val(args, value, MAX_VAL_LEN);
+                            start=atoi(value);
+                            if (*args!=0){
+                                args = read_val(args, value, MAX_VAL_LEN);
+                                len = atoi(value);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+            
+	if (is_valid_channel_number(channel)){
+
+        if (start>=ledstring.channel[channel].count) start=0;
+        if ((start+len)>ledstring.channel[channel].count) len=ledstring.channel[channel].count-start;
+        
+        if (delay<=0) delay=100;
+        
+        if (debug) printf("blink %d, %d, %d, %d, %d, %d, %d\n", channel, color1, color2, delay, count, start, len);
+        
+        ws2811_led_t * leds = ledstring.channel[channel].leds;
+        int i,blinks;
+        for (blinks=0; blinks<count;blinks++){
+            for (i=start;i<start+len;i++){
+                if ((blinks%2)==0) {
+					leds[i].color=color1;
+				}else{
+					leds[i].color=color2;
+				}
+            }
+            ws2811_render(&ledstring);
+            usleep(delay * 1000);
+        } 
+    }else{
+        fprintf(stderr,"Invalid channel number, did you call setup and init?\n");
+    }
+}
+
 //generates a brightness gradient pattern of a color component or brightness level
 //gradient <channel>,<RGBWL>,<startlevel>,<endlevel>,<startled>,<len>
 void gradient (char * args){
@@ -940,6 +1081,331 @@ void end_loop(char * args){
     }
 }
 
+//read JPEG image and put pixel data to LEDS
+//readjpg <channel>,<FILE>,<start>,<len>,<offset>,<OR AND XOR NOT =>
+//offset = where to start in JPEG file
+#ifdef USE_JPEG
+void readjpg(char * args){
+	struct jpeg_decompress_struct cinfo;
+	struct my_error_mgr jerr;
+	
+	char value[MAX_VAL_LEN];
+	int channel=0;
+	char filename[MAX_VAL_LEN];
+	unsigned int start=0, len=0, offset=0;
+	int op=0;
+    
+    if (is_valid_channel_number(channel)){
+        len = ledstring.channel[channel].count;;
+    }
+    if (args!=NULL){
+        args = read_val(args, value, MAX_VAL_LEN);
+		channel = atoi(value)-1;
+        if (is_valid_channel_number(channel)){
+            len = ledstring.channel[channel].count;;
+        }
+        if(*args!=0){
+			args = read_val(args, value, MAX_VAL_LEN);
+			strcpy(filename, value);
+			if (*args!=0){
+				args = read_val(args, value, MAX_VAL_LEN);
+				start=atoi(value);
+				if (*args!=0){
+					args = read_val(args, value, MAX_VAL_LEN);
+					len = atoi(value);
+					if (*args!=0){
+						args = read_val(args, value, MAX_VAL_LEN);
+						offset = atoi(value);						
+						if (*args!=0){
+							args = read_val(args, value, MAX_VAL_LEN);
+							if (strcmp(value, "OR")==0) op=1;
+							else if (strcmp(value, "AND")==0) op=2;
+							else if (strcmp(value, "XOR")==0) op=3;
+							else if (strcmp(value, "NOT")==0) op=4;
+						}
+					}
+				}
+			}
+        }
+    }
+    
+    if (is_valid_channel_number(channel)){
+		FILE * infile;		/* source file */
+		int row_stride;		/* physical row width in output buffer */
+
+		if (debug) printf("readjpg %d,%s,%d,%d,%d,%d\n", channel, filename, start, len,offset,op);
+		
+		if ((infile = fopen(filename, "rb")) == NULL) {
+			fprintf(stderr, "Error: can't open %s\n", filename);
+			return;
+		}
+
+		// We set up the normal JPEG error routines, then override error_exit.
+		cinfo.err = jpeg_std_error(&jerr.pub);
+		jerr.pub.error_exit = my_error_exit;
+		// Establish the setjmp return context for my_error_exit to use.
+		if (setjmp(jerr.setjmp_buffer)) {
+			/* If we get here, the JPEG code has signaled an error.
+			 * We need to clean up the JPEG object, close the input file, and return.
+			 */
+			jpeg_destroy_decompress(&cinfo);
+			fclose(infile);
+			return;
+		}
+		
+		// Now we can initialize the JPEG decompression object.
+		jpeg_create_decompress(&cinfo);
+		jpeg_stdio_src(&cinfo, infile);
+
+		jpeg_read_header(&cinfo, TRUE);
+		jpeg_start_decompress(&cinfo);
+
+		row_stride = cinfo.output_width * cinfo.output_components;
+		
+		JSAMPARRAY buffer;	// Output row buffer
+		int i=0,jpg_idx=0,led_idx; //pixel index for current row, jpeg image, led string
+		buffer = (*cinfo.mem->alloc_sarray)((j_common_ptr) &cinfo, JPOOL_IMAGE, row_stride, 1);
+
+		ws2811_led_t * leds = ledstring.channel[channel].leds;
+		
+		if (start>=ledstring.channel[channel].count) start=0;
+		if ((start+len)>ledstring.channel[channel].count) len=ledstring.channel[channel].count-start;
+		
+		led_idx=start; //start at this led index
+		
+		while (cinfo.output_scanline < cinfo.output_height) {
+			jpeg_read_scanlines(&cinfo, buffer, 1);
+			for(i=0;i<row_stride;i++){
+				if (jpg_idx>=offset){ //check jpeg offset
+					unsigned char r,g,b;
+					r = buffer[0][i*cinfo.output_components];
+					g = buffer[0][i*cinfo.output_components+1];
+					b = buffer[0][i*cinfo.output_components+2];
+					if (cinfo.output_components==1){ //grayscale image
+						g = r;
+						b = r;
+					}
+					if (led_idx<len){
+						if (debug) printf("led %d= r %d,g %d,b %d, jpg idx=%d\n", led_idx, r, g, b,jpg_idx);
+						int fill_color = color(r,g,b);
+						switch (op){
+							case 0:
+								leds[led_idx].color=fill_color;
+								break;
+							case 1:
+								leds[i].color|=fill_color;
+								break;
+							case 2:
+								leds[i].color&=fill_color;
+								break;
+							case 3:
+								leds[i].color^=fill_color;
+								break;
+							case 4:
+								leds[i].color=~fill_color;
+								break;
+						}
+					}
+					led_idx++;
+				}
+				jpg_idx++;
+			}
+		}
+
+		jpeg_finish_decompress(&cinfo);
+		jpeg_destroy_decompress(&cinfo);
+		fclose(infile);
+	}
+}
+#endif
+
+//read PNG image and put pixel data to LEDS
+//readjpg <channel>,<FILE>,<BACKCOLOR>,<start>,<len>,<offset>,<OR AND XOR =>
+//offset = where to start in PNG file
+//backcolor = color to use for transparent area, FF0000 = BLUE
+//P = use the PNG backcolor (default)
+//W = use the alpha data for the White leds in RGBW LED strips
+#ifdef USE_PNG
+void readpng(char * args){
+	struct jpeg_decompress_struct cinfo;
+	struct my_error_mgr jerr;
+	
+	char value[MAX_VAL_LEN];
+	int channel=0;
+	char filename[MAX_VAL_LEN];
+	unsigned int start=0, len=0, offset=0;
+	int op=0;
+	int backcolor=0;
+    int backcolortype=0; //0 = use PNG backcolor, 1 = use given backcolor, 2 = no backcolor but use alpha for white leds
+	
+	//read function arguments
+    if (is_valid_channel_number(channel)){
+        len = ledstring.channel[channel].count;;
+    }
+    if (args!=NULL){
+        args = read_val(args, value, MAX_VAL_LEN);
+		channel = atoi(value)-1;
+        if (is_valid_channel_number(channel)){
+            len = ledstring.channel[channel].count;;
+        }
+        if(*args!=0){
+			args = read_val(args, value, MAX_VAL_LEN);
+			strcpy(filename, value);
+			if (*args!=0){
+				args = read_val(args, value, MAX_VAL_LEN);
+				if (strlen(value)>=6){
+					if (is_valid_channel_number(channel)){
+						read_color(value, & backcolor, ledstring.channel[channel].color_size);
+						backcolortype=1;
+					}
+				}else if (strcmp(value, "W")==0){
+					backcolortype=2;
+				}
+				if (*args!=0){
+					args = read_val(args, value, MAX_VAL_LEN);
+					start=atoi(value);
+					if (*args!=0){
+						args = read_val(args, value, MAX_VAL_LEN);
+						len = atoi(value);
+						if (*args!=0){
+							args = read_val(args, value, MAX_VAL_LEN);
+							offset = atoi(value);						
+							if (*args!=0){
+								args = read_val(args, value, MAX_VAL_LEN);
+								if (strcmp(value, "OR")==0) op=1;
+								else if (strcmp(value, "AND")==0) op=2;
+								else if (strcmp(value, "XOR")==0) op=3;
+								else if (strcmp(value, "NOT")==0) op=4;
+							}
+						}
+					}
+				}
+			}
+        }
+    }
+	
+	if (is_valid_channel_number(channel)){
+		FILE * infile;		/* source file */
+		ulg image_width, image_height, image_rowbytes;
+		int image_channels,rc;
+		uch *image_data;
+		uch bg_red=0, bg_green=0, bg_blue=0;
+
+		if (debug) printf("readpng %d,%s,%d,%d,%d,%d,%d\n", channel, filename, backcolor, start, len,offset,op);
+		
+		if ((infile = fopen(filename, "rb")) == NULL) {
+			fprintf(stderr, "Error: can't open %s\n", filename);
+			return;
+		}
+		
+		if ((rc = readpng_init(infile, &image_width, &image_height)) != 0) {
+            switch (rc) {
+                case 1:
+                    fprintf(stderr, "[%s] is not a PNG file: incorrect signature.\n", filename);
+                    break;
+                case 2:
+                    fprintf(stderr, "[%s] has bad IHDR (libpng longjmp).\n", filename);
+                    break;
+                case 4:
+                    fprintf(stderr, "Read PNG insufficient memory.\n");
+                    break;
+                default:
+                    fprintf(stderr, "Unknown readpng_init() error.\n");
+                    break;
+            }
+            fclose(infile);
+			return;
+        }
+		
+		//get the background color (for transparency support)
+		if (backcolortype==0){
+			if (readpng_get_bgcolor(&bg_red, &bg_green, &bg_blue) > 1){
+				readpng_cleanup(TRUE);
+				fclose(infile);
+				fprintf(stderr, "libpng error while checking for background color\n");
+				return;
+			}
+		}else{
+			bg_red = get_red(backcolor);
+			bg_green = get_green(backcolor);
+			bg_blue = get_blue(backcolor);
+		}
+		
+		//read entire image data
+		image_data = readpng_get_image(2.2, &image_channels, &image_rowbytes);
+		
+		readpng_cleanup(FALSE);
+		fclose(infile);
+		
+		if (image_data) {
+			int row=0, led_idx=0, png_idx=0, i=0;
+			uch r, g, b, a;
+			uch *src;
+			
+			ws2811_led_t * leds = ledstring.channel[channel].leds;
+		
+			if (start>=ledstring.channel[channel].count) start=0;
+			if ((start+len)>ledstring.channel[channel].count) len=ledstring.channel[channel].count-start;
+			
+			led_idx=start; //start at this led index
+			//load all pixels
+			for (row = 0;  row < image_height; row++) {
+				src = image_data + row * image_rowbytes;
+				
+				for (i = image_width;  i > 0;  --i) {
+					r = *src++;
+					g = *src++;
+					b = *src++;
+					
+					if (image_channels != 3){
+						a = *src++;
+						if (backcolortype!=2){
+							r = alpha_component(r, bg_red,a);
+							g = alpha_component(g, bg_green,a);
+							b = alpha_component(b, bg_blue,a);
+						}
+					}					
+					if (png_idx>=offset){
+						if (debug) printf("led %d= r %d,g %d,b %d,a %d, PNG channels=%d, PNG idx=%d\n", led_idx, r, g, b, a,image_channels,png_idx);
+						if (led_idx<len){
+							int fill_color;
+							if (backcolortype==2 && ledstring.channel[channel].color_size>3){
+								fill_color=color_rgbw(r,g,b,a);
+							}else{
+								fill_color=color(r,g,b);
+							}
+		
+							switch (op){
+								case 0:
+									leds[led_idx].color=fill_color;
+									break;
+								case 1:
+									leds[i].color|=fill_color;
+									break;
+								case 2:
+									leds[i].color&=fill_color;
+									break;
+								case 3:
+									leds[i].color^=fill_color;
+									break;
+								case 4:
+									leds[i].color=~fill_color;
+									break;
+							}
+							
+						}
+						led_idx++;
+					}
+					png_idx++;
+				}
+			}
+		}else{
+			fprintf(stderr, "Unable to decode PNG image\n");
+		}
+    }
+}
+#endif
+
 //initializes the memory for a TCP/IP multithread buffer
 void init_thread(char * data){
     if (thread_data==NULL){
@@ -985,6 +1451,24 @@ void thread_func (void * param){
     pthread_exit(NULL); //exit the tread
 }
 
+void str_replace(char * dst, char * src, char * find, char * replace){
+	char *p;
+	size_t replace_len = strlen(replace);
+	size_t find_len = strlen(find);
+	
+	p = strstr(src, find);
+	while (p){
+		strncpy(dst, src, p - src); //copy first part
+		dst+=p-src;
+		strcpy(dst, replace);
+		dst+=replace_len;
+		p+=find_len;
+		src=p;
+		p = strstr(p, find);
+	}
+	if (*src!='\0') strcpy(dst, src); //copy last part
+}
+
 //executes 1 command line
 void execute_command(char * command_line){
     
@@ -1006,11 +1490,29 @@ void execute_command(char * command_line){
             write_thread_buffer(';');
         }
     }else{
- 
-        char * arg = strchr(command_line, ' ');
-        char * command =  strtok(command_line, " \r\n");    
-        
-        if (arg!=NULL) arg++;
+		char * raw_args = strchr(command_line, ' ');		
+        char * command =  strtok(command_line, " \r\n");
+
+		char * arg = NULL;
+		
+		if (raw_args!=NULL){
+			raw_args++;			
+			if (strlen(raw_args)>0){
+				arg = (char*) malloc(strlen(raw_args)*2);
+				char * tmp_arg = (char *) malloc(strlen(raw_args)*2);
+				int i=0;
+				char find_loop_nr[MAX_LOOPS+2];
+				char replace_loop_index[MAX_LOOPS+2];
+				strcpy(arg,raw_args);
+				for (i=0;i<loop_index;i++){
+					sprintf(find_loop_nr, "{%d}", i);
+					sprintf(replace_loop_index, "%d", loops[i].n_loops);
+					str_replace(tmp_arg, arg, find_loop_nr, replace_loop_index); //cannot put result in same string we are replacing, store in temp buffer
+					strcpy(arg, tmp_arg);
+				}
+				free(tmp_arg);
+			}
+		}
         
         if (strcmp(command, "render")==0){
             render(arg);
@@ -1044,6 +1546,16 @@ void execute_command(char * command_line){
             print_settings();
         }else if (strcmp(command, "global_brightness")==0){
             global_brightness(arg);
+		}else if (strcmp(command, "blink")==0){
+			blink(arg);
+		#ifdef USE_JPEG
+		}else if (strcmp(command, "readjpg")==0){
+			readjpg(arg);
+		#endif
+		#ifdef USE_PNG
+		}else if (strcmp(command, "readpng")==0){
+			readpng(arg);
+		#endif
         }else if (strcmp(command, "help")==0){
             printf("debug (enables some debug output)\n");
             printf("setup <channel>, <led_count>, <led_type>, <invert>, <global_brightness>, <gpionum>\n");
@@ -1069,8 +1581,15 @@ void execute_command(char * command_line){
             printf("fade <channel>,<start_brightness>,<end_brightness>,<delay ms>,<step>,<start_led>,<len>\n");
             printf("gradient <channel>,<RGBWL>,<start_level>,<end_level>,<start_led>,<len>\n");
             printf("random <channel>,<start>,<len>,<RGBWL>\n");
+			#ifdef USE_JPEG
+			printf("readjpg <channel>,<file>,<LED start>,<len>,<JPEG Pixel offset>,<OR,AND,XOR,NOT,=>\n");
+			#endif
+			#ifdef USE_PNG
+			printf("readpng <channel>,<file>,<BACKCOLOR>,<LED start>,<len>,<PNG Pixel offset>,<OR,AND,XOR,NOT,=>\n     BACKCOLOR=XXXXXX for color, PNG=USE PNG Back color (default), W=Use alpha for white leds in RGBW strips.\n");
+			#endif
             printf("settings\n");
             printf("do ... loop (TCP / File mode only)\n");
+			printf("Inside a finite loop {x} will be replaced by the current loop index number. x stands for the loop number in case of multiple nested loops (default use 0).");
             printf("exit\n");
         }else if (strcmp(command, "debug")==0){
             if (debug) debug=0;
@@ -1081,6 +1600,7 @@ void execute_command(char * command_line){
         }else{
             printf("Unknown cmd: %s\n", command_line);
         }
+		//free(arg);
     }
 }
 
@@ -1221,6 +1741,22 @@ int main(int argc, char *argv[]){
             mode = MODE_TCP;
         }else if (strcmp(argv[arg_idx], "-d")==0){ //turn debug on
 			debug=1;
+		}else if (strcmp(argv[arg_idx], "-i")==0){ //initialize command
+			if (argc>arg_idx+1){
+				arg_idx++;
+				for(i=0;i<strlen(argv[arg_idx]);i++){
+					process_character(argv[arg_idx][i]);
+				}
+			}
+		}else if (strcmp(argv[arg_idx], "-?")==0){
+			printf("Command line options:\n");
+			printf("-p <pipename>       creates a named pipe at location <pipename> where you can write command to.\n");
+			printf("-f <filename>       read commands from <filename>\n");
+			printf("-tcp <port>         listen for TCP connection to receive commands from.\n");
+			printf("-d                  turn debug output on.\n");
+			printf("-i \"<commands>\"       initialize with <commands> (seperate and end with ;)\n");
+			printf("-?                  show this message.\n");
+			return 0;
 		}
 		arg_idx++;
 	}
