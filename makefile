@@ -1,15 +1,17 @@
 all: ws2812svr
 
 INCL=-I/usr/include
-LINK=-L/usr/lib -L/usr/local/lib -I/usr/lib/arm-linux-gnueabihf -lpthread -ljpeg -lpng
+LINK=-L/usr/lib -L/usr/local/lib -I/usr/lib/arm-linux-gnueabihf -lpthread
 CC=gcc -g $(INCL)
 
 ifneq (1,$(NO_PNG))
   CC += -DUSE_PNG
+  LINK += -lpng
 endif
 
 ifneq (1,$(NO_JPEG))
   CC += -DUSE_JPEG
+  LINK += -ljpeg
 endif
 
 dma.o: dma.c dma.h
