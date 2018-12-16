@@ -53,7 +53,24 @@ Here is a list of commands you can type or send to the program. All commands hav
 		<led_type>, 					#type of led (3 color or 4 color) default 0
 		<invert>, 						#invert output, default 0
 		<global_brightness>, 			#global brightness level for channel (0-255), default 255
-		<gpionum>						#GPIO output number, 18 for PWM0 = pin 12, 24 for PWM1 = pin 35, default 18
+		<gpionum>						#GPIO output number, 18 for PWM0 = pin 12
+			Possible values for gpionum:
+			-PWM:
+				PWM0, which can be set to use GPIOs 12, 18, 40, and 52.
+				Only 12 (pin 32) and 18 (pin 12) are available on the B+/2B/3B
+				PWM1 which can be set to use GPIOs 13, 19, 41, 45 and 53.
+				Only 13 is available on the B+/2B/PiZero/3B, on pin 33
+
+			-PCM:
+				PCM_DOUT, which can be set to use GPIOs 21 and 31.
+				Only 21 is available on the B+/2B/PiZero/3B, on pin 40.
+
+			-SPI:
+				SPI0-MOSI is available on GPIOs 10 and 38.
+				Only GPIO 10 is available on all models.
+				Requires SPI driver to be loaded (/dev/spi...)
+
+		
 	
 	Possible LED types:
 		0 WS2811_STRIP_RGB

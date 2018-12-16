@@ -56,7 +56,7 @@ setup
 		<led_type>, 					#type of led (3 color or 4 color) default 0
 		<invert>, 						#invert output, default 0
 		<global_brightness>, 			#global brightness level for channel (0-255), default 255
-		<gpionum>						#GPIO output number, 18 for PWM0 = pin 12, 24 for PWM1 = pin 35, default 18
+		<gpionum>						#GPIO output number, default 18 for more see 'GPIO usage' at this page: [https://github.com/jgarff/rpi_ws281x](https://github.com/jgarff/rpi_ws281x)
 	
 	Possible LED types:
 		0 WS2811_STRIP_RGB
