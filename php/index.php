@@ -18,6 +18,7 @@ if ($cmd!=''){
             break;
         case 'rotating_rainbow':
             $data .= "brightness 1,$brightness;
+                      rainbow;
                       thread_start;
                      do;
                         rotate 1,1,2;
