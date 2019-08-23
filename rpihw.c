@@ -43,6 +43,7 @@
 
 #define PERIPH_BASE_RPI                          0x20000000
 #define PERIPH_BASE_RPI2                         0x3f000000
+#define PERIPH_BASE_RPI4                         0xfe000000
 
 #define VIDEOCORE_BASE_RPI                       0x40000000
 #define VIDEOCORE_BASE_RPI2                      0xc0000000
@@ -51,6 +52,30 @@
 #define RPI_WARRANTY_MASK                        (0x3 << 24)
 
 static const rpi_hw_t rpi_hw_info[] = {
+    //
+    // Raspberry Pi 4
+    //
+    {
+        .hwver = 0xA03111,
+        .type = RPI_HWVER_TYPE_PI4,
+        .periph_base = PERIPH_BASE_RPI4,
+        .videocore_base = VIDEOCORE_BASE_RPI2,
+        .desc = "Pi 4 Model B - 1GB"
+    },
+    {
+        .hwver = 0xB03111,
+        .type = RPI_HWVER_TYPE_PI4,
+        .periph_base = PERIPH_BASE_RPI4,
+        .videocore_base = VIDEOCORE_BASE_RPI2,
+        .desc = "Pi 4 Model B - 2GB"
+    },
+    {
+        .hwver = 0xC03111,
+        .type = RPI_HWVER_TYPE_PI4,
+        .periph_base = PERIPH_BASE_RPI4,
+        .videocore_base = VIDEOCORE_BASE_RPI2,
+        .desc = "Pi 4 Model B - 4GB"
+    },
     //
     // Model B Rev 1.0
     //
@@ -303,12 +328,34 @@ static const rpi_hw_t rpi_hw_info[] = {
         .desc = "Pi 3",
     },
     {
+	.hwver  = 0xa02083,
+        .type = RPI_HWVER_TYPE_PI2,
+        .periph_base = PERIPH_BASE_RPI2,
+        .videocore_base = VIDEOCORE_BASE_RPI2,
+        .desc = "Pi 3",
+    },
+    {
         .hwver  = 0xa22082,
         .type = RPI_HWVER_TYPE_PI2,
         .periph_base = PERIPH_BASE_RPI2,
         .videocore_base = VIDEOCORE_BASE_RPI2,
         .desc = "Pi 3",
     },
+    {
+        .hwver  = 0xa22083,
+        .type = RPI_HWVER_TYPE_PI2,
+        .periph_base = PERIPH_BASE_RPI2,
+        .videocore_base = VIDEOCORE_BASE_RPI2,
+        .desc = "Pi 3",
+    },
+    {
+        .hwver  = 0x9020e0,
+        .type = RPI_HWVER_TYPE_PI2,
+        .periph_base = PERIPH_BASE_RPI2,
+        .videocore_base = VIDEOCORE_BASE_RPI2,
+        .desc = "Model 3 A+",
+    },
+
     //
     // Pi Compute Module 3
     //
@@ -319,15 +366,27 @@ static const rpi_hw_t rpi_hw_info[] = {
         .videocore_base = VIDEOCORE_BASE_RPI2,
         .desc = "Compute Module 3/L3",
     },
+    //
+    // Pi Compute Module 3+
+    //
+    {
+        .hwver  = 0xa02100,
+        .type = RPI_HWVER_TYPE_PI2,
+        .periph_base = PERIPH_BASE_RPI2,
+        .videocore_base = VIDEOCORE_BASE_RPI2,
+        .desc = "Compute Module 3+",
+    },
+
 
 };
 
 
 const rpi_hw_t *rpi_hw_detect(void)
 {
-	const rpi_hw_t *result = NULL;
+    const rpi_hw_t *result = NULL;
     uint32_t rev;
     unsigned i;
+
 #ifdef __aarch64__
     // On ARM64, read revision from /proc/device-tree as it is not shown in
     // /proc/cpuinfo
@@ -340,12 +399,14 @@ const rpi_hw_t *rpi_hw_detect(void)
     #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
         rev = bswap_32(rev);  // linux,revision appears to be in big endian
     #endif
+
     for (i = 0; i < (sizeof(rpi_hw_info) / sizeof(rpi_hw_info[0])); i++)
     {
         uint32_t hwver = rpi_hw_info[i].hwver;
         if (rev == hwver)
         {
             result = &rpi_hw_info[i];
+
             goto done;
         }
     }
@@ -384,7 +445,7 @@ const rpi_hw_t *rpi_hw_detect(void)
                 // Take out warranty and manufacturer bits
                 hwver &= ~(RPI_WARRANTY_MASK | RPI_MANUFACTURER_MASK);
                 rev &= ~(RPI_WARRANTY_MASK | RPI_MANUFACTURER_MASK);
-                
+
                 if (rev == hwver)
                 {
                     result = &rpi_hw_info[i];
