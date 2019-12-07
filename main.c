@@ -1035,6 +1035,7 @@ void random_fade_in_out(char * args){
 		
 		unsigned int start_time = time(0);
 		
+		while (((time(0) - start_time) < duration) || duration==0){
 			for (i=0;i<count; i++){
 				if (led_status[i].delay<=0){
 					if (led_status[i].led_index!=-1){
