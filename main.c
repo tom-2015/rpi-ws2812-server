@@ -199,35 +199,67 @@ int is_valid_channel_number(unsigned int channel){
 //example: channel_1_count=10,
 //returns channel_1_count in key buffer, then use read_val to read the 10
 char * read_key(char * args, char * key, size_t size){
-	size--;
-    if (*args==',') args++;
-	while (*args!=0 && *args!='=' && *args!=','){
-		if (*args!=' ' && *args!='\t'){ //skip space
-			*key=*args; //add character to key value
-			key++;
-			size--;
-			if (size==0) break;
+	if (args!=NULL && *args!=0){
+		size--;
+		if (*args==',') args++;
+		while (*args!=0 && *args!='=' && *args!=','){
+			if (*args!=' ' && *args!='\t'){ //skip space
+				*key=*args; //add character to key value
+				key++;
+				size--;
+				if (size==0) break;
+			}
+			args++;
 		}
-		args++;
+		*key=0;
 	}
-	*key=0;
 	return args;
 }
 
 //read value from command argument buffer (see read_key)
 char * read_val(char * args, char * value, size_t size){
-	size--;
-    if (*args==',') args++;
-	while (*args!=0 && *args!=','){
-		if (*args!=' ' && *args!='\t'){ //skip space
-			*value=*args;
-			value++;
-			size--;
-			if (size==0) break;
+	if (args!=NULL && *args!=0){
+		size--;
+		if (*args==',') args++;
+		while (*args!=0 && *args!=','){
+			if (*args!=' ' && *args!='\t'){ //skip space
+				*value=*args;
+				value++;
+				size--;
+				if (size==0) break;
+			}
+			args++;
 		}
-		args++;
+		*value=0;
 	}
-	*value=0;
+	return args;
+}
+
+//reads integer from command argument buffer
+char * read_int(char * args, int * value){
+	char svalue[MAX_VAL_LEN];
+	if (args!=NULL && *args!=0){
+		args = read_val(args, svalue, MAX_VAL_LEN);
+		*value = atoi(svalue);
+	}
+	return args;
+}
+
+//reads unsigned integer from command argument buffer
+char * read_uint(char * args, unsigned int * value){
+	char svalue[MAX_VAL_LEN];
+	if (args!=NULL && *args!=0){
+		args = read_val(args, svalue, MAX_VAL_LEN);
+		*value = (unsigned int) (strtoul(svalue,NULL, 10) & 0xFFFFFFFF);
+	}
+	return args;	
+}
+
+char * read_channel(char * args, int * value){
+	if (args!=NULL && *args!=0){
+		args = read_int(args, value);
+		(*value)--;
+	}
 	return args;
 }
 
@@ -237,41 +269,71 @@ char * read_color(char * args, unsigned int * out_color, unsigned int color_size
     unsigned char r,g,b,w;
     unsigned char color_string[8];
     unsigned int color_string_idx=0;
-    *out_color = 0;
-    while (*args!=0 && color_string_idx<color_size*2){
-        if (*args!=' ' && *args!='\t'){ //skip space
-            color_string[color_string_idx]=*args;
-            color_string_idx++;
-        }
-        args++;
-    }
-    
-    r = (hextable[color_string[0]]<<4) + hextable[color_string[1]];
-    g = (hextable[color_string[2]]<<4) + hextable[color_string[3]];
-    b = (hextable[color_string[4]]<<4) + hextable[color_string[5]];
-    if (color_size==4){
-        w = (hextable[color_string[6]]<<4) + hextable[color_string[7]];
-        *out_color = color_rgbw(r,g,b,w);
-    }else{
-        *out_color = color(r,g,b);
-    }
+	if (args!=NULL && *args!=0){
+		*out_color = 0;
+		while (*args!=0 && color_string_idx<color_size*2){
+			if (*args!=' ' && *args!='\t'){ //skip space
+				color_string[color_string_idx]=*args;
+				color_string_idx++;
+			}
+			args++;
+		}
+		
+		r = (hextable[color_string[0]]<<4) + hextable[color_string[1]];
+		g = (hextable[color_string[2]]<<4) + hextable[color_string[3]];
+		b = (hextable[color_string[4]]<<4) + hextable[color_string[5]];
+		if (color_size==4){
+			w = (hextable[color_string[6]]<<4) + hextable[color_string[7]];
+			*out_color = color_rgbw(r,g,b,w);
+		}else{
+			*out_color = color(r,g,b);
+		}
+	}
     return args;
+}
+
+char * read_color_arg(char * args, unsigned int * out_color, unsigned int color_size){
+	char value[MAX_VAL_LEN];
+	args = read_val(args, value, MAX_VAL_LEN);
+	if (*value!=0) read_color(value, out_color, color_size);
+	return args;
 }
 
 //reads a hex brightness value
 char * read_brightness(char * args, unsigned int * brightness){
     unsigned int idx=0;
     unsigned char str_brightness[2];
-    *brightness=0;
-    while (*args!=0 && idx<2){
-        if (*args!=' ' && *args!='\t'){ //skip space
-            brightness[idx]=*args;
-            idx++;
-        }
-        args++;
-    }
-    * brightness = (hextable[str_brightness[0]] << 4) + hextable[str_brightness[1]];
+	if (args!=NULL && *args!=0){
+		*brightness=0;
+		while (*args!=0 && idx<2){
+			if (*args!=' ' && *args!='\t'){ //skip space
+				brightness[idx]=*args;
+				idx++;
+			}
+			args++;
+		}
+		* brightness = (hextable[str_brightness[0]] << 4) + hextable[str_brightness[1]];
+	}
     return args;
+}
+
+#define OP_EQUAL 0
+#define OP_OR 1
+#define OP_AND 2
+#define OP_XOR 3
+#define OP_NOT 4
+
+char * read_operation(char * args, char * op){
+	char value[MAX_VAL_LEN];
+	if (args!=NULL && *args!=0){
+		args = read_val(args, value, MAX_VAL_LEN);
+		if (strcmp(value, "OR")==0) *op=OP_OR;
+		else if (strcmp(value, "AND")==0) *op=OP_AND;
+		else if (strcmp(value, "XOR")==0) *op=OP_XOR;
+		else if (strcmp(value, "NOT")==0) *op=OP_NOT;
+		else if (strcmp(value, "=")==0) *op=OP_EQUAL;
+	}	
+	return args;
 }
 
 //initializes channels
@@ -323,7 +385,6 @@ void global_brightness(char * args){
 //sets the ws2811 channels
 //setup channel, led_count, type, invert, global_brightness, GPIO
 void setup_ledstring(char * args){
-    char value[MAX_VAL_LEN];
     int channel=0, led_count=10, type=0, invert=0, brightness=255, GPIO=18;
 	
     const int led_types[]={WS2811_STRIP_RGB, //0 
@@ -340,32 +401,12 @@ void setup_ledstring(char * args){
                            SK6812_STRIP_BGRW //11
                            };
     
-    
-    if (args!=NULL){
-        args = read_val(args, value, MAX_VAL_LEN);
-        channel = atoi(value)-1;
-        if (channel==2) GPIO=13;
-        if (*args!=0){
-            args = read_val(args, value, MAX_VAL_LEN);
-            led_count = atoi(value);
-            if (*args!=0){
-                args = read_val(args, value, MAX_VAL_LEN);
-                type = atoi(value);
-                if (*args!=0){
-                    args = read_val(args, value, MAX_VAL_LEN);
-                    invert = atoi(value);
-                    if (*args!=0){
-                        args = read_val(args, value, MAX_KEY_LEN);
-                        brightness = atoi(value);
-                        if (*args!=0){
-                            args = read_val(args, value, MAX_KEY_LEN);
-                            GPIO = atoi(value);
-                        }
-                    }
-                }
-            }
-        }
-    }
+	args = read_channel(args, & channel);
+	args = read_int(args, & led_count);
+	args = read_int(args, & type);
+	args = read_int(args, & invert);
+	args = read_int(args, & brightness);
+	args = read_int(args, & GPIO);
     
     if (channel >=0 && channel < RPI_PWM_CHANNELS){
 
@@ -441,18 +482,16 @@ void render(char * args){
 	int r,g,b,w;
 	int size;
     int start;
-    char value[MAX_VAL_LEN];
     char color_string[6];
     
 	if (debug) printf("Render %s\n", args);
 	
     if (args!=NULL){
-		args = read_val(args, value, MAX_VAL_LEN);
-		channel = atoi(value)-1;
+		args = read_channel(args, & channel); //read_val(args, & channel, MAX_VAL_LEN);
+		//channel = channel-1;
         if (is_valid_channel_number(channel)){
             if (*args!=0){
-                args = read_val(args, value, MAX_VAL_LEN); //read start position
-                start = atoi(value);
+                args = read_int(args, & start); //read start position
                 while (*args!=0 && (*args==' ' || *args==',')) args++; //skip white space
                 
                 if (debug) printf("Render channel %d selected start at %d leds %d\n", channel, start, ledstring.channel[channel].count);
@@ -470,48 +509,33 @@ void render(char * args){
                     led_index++;
                     if (led_index>=led_count) led_index=0;
                 }
-            }
-        }else{
-            fprintf(stderr,"Invalid channel number, did you call setup and init?\n");
+            }			
         }
 	}
-	ws2811_render(&ledstring);
+	if (is_valid_channel_number(channel)){
+		ws2811_render(&ledstring);
+	}else{
+		fprintf(stderr,"Invalid channel number, did you call setup and init?\n");
+	}
 }
 
 //shifts all colors 1 position
 //rotate <channel>,<places>,<direction>,<new_color>,<new_brightness>
 //if new color is set then the last led will have this color instead of the color of the first led
 void rotate(char * args){
-	char value[MAX_VAL_LEN];
 	int channel=0, nplaces=1, direction=1;
     unsigned int new_color=0, new_brightness=255;
 	int use_new_color=0;
     
-	if (args!=NULL){
-		args = read_val(args, value, MAX_VAL_LEN);
-		channel = atoi(value)-1;
-		if (*args!=0){
-			args = read_val(args, value, MAX_VAL_LEN);
-			nplaces = atoi(value);
-			if (*args!=0){
-				args = read_val(args, value, MAX_VAL_LEN);
-				direction = atoi(value);
-				if (*args!=0){
-					args = read_val(args, value, MAX_VAL_LEN);
-					if (strlen(value)>=6){
-                        if (is_valid_channel_number(channel)){
-                            read_color(value, & new_color, ledstring.channel[channel].color_size);
-                            use_new_color=1;
-                            args = read_val(args, value, MAX_VAL_LEN);
-                            if (strlen(value)==2) read_brightness(value, & new_brightness);
-                        }
-					}
-				}
-			}
-		}
+	args = read_channel(args, & channel);
+	args = read_int(args, & nplaces);
+	args = read_int(args, & direction);
+	if (is_valid_channel_number(channel)){
+		args = read_color_arg(args, & new_color, ledstring.channel[channel].color_size);
+		read_brightness(args, & new_brightness);
 	}
 	
-	if (debug) printf("Rotate %d %d %d %d\n", channel, nplaces, direction, new_color);
+	if (debug) printf("Rotate %d %d %d %d %d\n", channel, nplaces, direction, new_color, new_brightness);
 	
     if (is_valid_channel_number(channel)){
         ws2811_led_t tmp_led;
@@ -553,35 +577,16 @@ void rotate(char * args){
 //rainbow <channel>,<count>,<startcolor>,<stopcolor>,<start>,<len>
 //start and stop = color values on color wheel (0-255)
 void rainbow(char * args) {
-	char value[MAX_VAL_LEN];
 	int channel=0, count=1,start=0,stop=255,startled=0, len=0;
 	
     if (is_valid_channel_number(channel)) len=ledstring.channel[channel].count;
-	if (args!=NULL){
-		args = read_val(args, value, MAX_VAL_LEN);
-		channel = atoi(value)-1;
-        if (is_valid_channel_number(channel)) len=ledstring.channel[channel].count;;
-		if (*args!=0){
-			args = read_val(args, value, MAX_VAL_LEN);
-			count = atoi(value);
-			if (*args!=0){
-				args = read_val(args, value, MAX_VAL_LEN);
-				start = atoi(value);
-				if (*args!=0){
-					args = read_val(args, value, MAX_VAL_LEN);
-					stop = atoi(value);
-                    if (*args!=0){
-                        args = read_val(args, value, MAX_VAL_LEN);
-                        startled=atoi(value);
-                        if(*args!=0){
-                            args = read_val(args, value, MAX_VAL_LEN);
-                            len=atoi(value);
-                        }
-                    }
-				}
-			}
-		}
-	}	
+	args = read_channel(args, & channel);
+	if (is_valid_channel_number(channel)) len=ledstring.channel[channel].count;
+	args = read_int(args, & count);
+	args = read_int(args, & start);
+	args = read_int(args, & stop);
+	args = read_int(args, & startled);
+	args = read_int(args, & len);
 	
 	if (is_valid_channel_number(channel)){
         if (start<0 || start > 255) start=0;
@@ -589,7 +594,7 @@ void rainbow(char * args) {
         if (startled<0) startled=0;
         if (startled+len> ledstring.channel[channel].count) len = ledstring.channel[channel].count-startled;
         
-        if (debug) printf("Rainbow %d,%d,%d,%d,%d,%d,%d\n", channel, count,start,stop,startled,len);
+        if (debug) printf("Rainbow %d,%d,%d,%d,%d,%d\n", channel, count,start,stop,startled,len);
         
         int numPixels = len; //ledstring.channel[channel].count;;
         int i, j;
@@ -602,42 +607,21 @@ void rainbow(char * args) {
     }
 }
 
+
+
 //fills leds with certain color
 //fill <channel>,<color>,<start>,<len>,<OR,AND,XOR,NOT,=>
 void fill(char * args){
-	char value[MAX_VAL_LEN];
     char op=0;
 	int channel=0,start=0,len=-1;
 	unsigned int fill_color=0;
-    
-	if (args!=NULL){
-		args = read_val(args, value, MAX_VAL_LEN);
-		channel = atoi(value)-1;
-		if (*args!=0){
-			args = read_val(args, value, MAX_VAL_LEN);
-			if (strlen(value)>=6){
-                if (is_valid_channel_number(channel)) read_color(value, & fill_color, ledstring.channel[channel].color_size);
-			}else{
-				printf("Invalid color\n");
-			}
-			if (*args!=0){
-				args = read_val(args, value, MAX_VAL_LEN);
-				start = atoi(value);
-				if (*args!=0){
-					args = read_val(args, value, MAX_VAL_LEN);
-					len = atoi(value);
-                    if (*args!=0){
-                        args = read_val(args, value, MAX_VAL_LEN);
-                        if (strcmp(value, "OR")==0) op=1;
-                        else if (strcmp(value, "AND")==0) op=2;
-                        else if (strcmp(value, "XOR")==0) op=3;
-                        else if (strcmp(value, "NOT")==0) op=4;
-                        else if (strcmp(value, "=")==0) op=0;
-                    }
-				}
-			}
-		}
-	}
+	
+	args = read_channel(args, & channel);
+	if (is_valid_channel_number(channel)) args = read_color_arg(args, & fill_color, ledstring.channel[channel].color_size);
+    args = read_int(args, & start);
+	args = read_int(args, & len);
+	args = read_operation(args, & op);
+
 	
 	if (is_valid_channel_number(channel)){
         if (start<0 || start>=ledstring.channel[channel].count) start=0;        
@@ -649,19 +633,19 @@ void fill(char * args){
         unsigned int i;
         for (i=start;i<start+len;i++){
             switch (op){
-                case 0:
+                case OP_EQUAL:
                     leds[i].color=fill_color;
                     break;
-                case 1:
+                case OP_OR:
                     leds[i].color|=fill_color;
                     break;
-                case 2:
+                case OP_AND:
                     leds[i].color&=fill_color;
                     break;
-                case 3:
+                case OP_XOR:
                     leds[i].color^=fill_color;
                     break;
-                case 4:
+                case OP_NOT:
                     leds[i].color=~leds[i].color;
                     break;
             }
@@ -674,29 +658,18 @@ void fill(char * args){
 //dims leds
 //brightness <channel>,<brightness>,<start>,<len> (brightness: 0-255)
 void brightness(char * args){
-	char value[MAX_VAL_LEN];
 	int channel=0, brightness=255;
 	unsigned int start=0, len=0;
     if (is_valid_channel_number(channel)){
         len = ledstring.channel[channel].count;;
     }
-	if (args!=NULL){
-		args = read_val(args, value, MAX_VAL_LEN);
-		channel = atoi(value)-1;
-        if (is_valid_channel_number(channel)) len = ledstring.channel[channel].count;;
-		if (*args!=0){
-			args = read_val(args, value, MAX_VAL_LEN);
-			brightness = atoi(value);
-            if(*args!=0){
-                args = read_val(args, value, MAX_VAL_LEN);
-                start = atoi(value);
-                if (*args!=0){
-                    args = read_val(args, value, MAX_VAL_LEN);
-                    len = atoi(value);
-                }
-            }
-		}
-	}
+	
+	args = read_channel(args, & channel);
+	if (is_valid_channel_number(channel)) len = ledstring.channel[channel].count;;
+	args = read_int(args, & brightness);
+	args = read_int(args, & start);
+	args = read_int(args, & len);
+	
 	
 	if (is_valid_channel_number(channel)){
         if (brightness<0 || brightness>0xFF) brightness=255;
@@ -719,44 +692,24 @@ void brightness(char * args){
 //causes a fade effect in time
 //fade <channel>,<startbrightness>,<endbrightness>,<delay>,<step>,<startled>,<len>
 void fade (char * args){
-    char value[MAX_VAL_LEN];
 	int channel=0, brightness=255,step=1,startbrightness=0, endbrightness=255;
 	unsigned int start=0, len=0, delay=50;
     
     if (is_valid_channel_number(channel)){
         len = ledstring.channel[channel].count;;
     }
-    if (args!=NULL){
-        args = read_val(args, value, MAX_VAL_LEN);
-		channel = atoi(value)-1;
-        if (is_valid_channel_number(channel)){
-            len = ledstring.channel[channel].count;;
-        }
-        if (*args!=0){
-            args = read_val(args, value, MAX_VAL_LEN);
-            startbrightness=atoi(value);
-            if(*args!=0){
-                args = read_val(args, value, MAX_VAL_LEN);
-                endbrightness=atoi(value);
-                if(*args!=0){
-                    args = read_val(args, value, MAX_VAL_LEN);
-                    delay = atoi(value);
-                    if(*args!=0){
-                        args = read_val(args, value, MAX_VAL_LEN);
-                        step = atoi(value);
-                        if(*args!=0){
-                            args = read_val(args, value, MAX_VAL_LEN);
-                            start=atoi(value);
-                            if (*args!=0){
-                                args = read_val(args, value, MAX_VAL_LEN);
-                                len = atoi(value);
-                            }
-                        }
-                    }
-                }
-            }
-        }
+	
+	args = read_channel(args, & channel);
+	if (is_valid_channel_number(channel)){
+        len = ledstring.channel[channel].count;;
     }
+	args = read_int(args, & startbrightness);
+	args = read_int(args, & endbrightness);
+	args = read_int(args, & delay);
+	args = read_int(args, & step);
+	args = read_int(args, & start);
+	args = read_int(args, & len);
+	
             
 	if (is_valid_channel_number(channel)){
         if (startbrightness>0xFF) startbrightness=255;
@@ -792,52 +745,25 @@ void fade (char * args){
 //makes some leds blink between 2 given colors for x times with a given delay
 //blink <channel>,<color1>,<color2>,<delay>,<blink_count>,<startled>,<len>
 void blink (char * args){
-    char value[MAX_VAL_LEN];
 	int channel=0, color1=0, color2=0xFFFFFF,delay=1000, count=10;
 	unsigned int start=0, len=0;
     
     if (is_valid_channel_number(channel)){
         len = ledstring.channel[channel].count;;
     }
-    if (args!=NULL){
-        args = read_val(args, value, MAX_VAL_LEN);
-		channel = atoi(value)-1;
-        if (is_valid_channel_number(channel)){
-            len = ledstring.channel[channel].count;;
-        }
-        if (*args!=0){
-            args = read_val(args, value, MAX_VAL_LEN);
-			if (strlen(value)>=6){
-                if (is_valid_channel_number(channel)) read_color(value, & color1, ledstring.channel[channel].color_size);
-			}else{
-				printf("Invalid color 1\n");
-			}
-            if(*args!=0){
-                args = read_val(args, value, MAX_VAL_LEN);
-				if (strlen(value)>=6){
-					if (is_valid_channel_number(channel)) read_color(value, & color2, ledstring.channel[channel].color_size);
-				}else{
-					printf("Invalid color 2\n");
-				}
-                if(*args!=0){
-                    args = read_val(args, value, MAX_VAL_LEN);
-                    delay = atoi(value);
-                    if(*args!=0){
-                        args = read_val(args, value, MAX_VAL_LEN);
-                        count = atoi(value);
-                        if(*args!=0){
-                            args = read_val(args, value, MAX_VAL_LEN);
-                            start=atoi(value);
-                            if (*args!=0){
-                                args = read_val(args, value, MAX_VAL_LEN);
-                                len = atoi(value);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+	
+	args = read_channel(args, & channel);
+	if (is_valid_channel_number(channel)){
+		len = ledstring.channel[channel].count;;
+	}	
+	
+	if (is_valid_channel_number(channel)) args = read_color_arg(args, & color1, ledstring.channel[channel].color_size);
+	if (is_valid_channel_number(channel)) args = read_color_arg(args, & color2, ledstring.channel[channel].color_size);
+	args = read_int(args, & delay);
+	args = read_int(args, & count);
+	args = read_int(args, & start);
+	args = read_int(args, & len);
+	
             
 	if (is_valid_channel_number(channel)){
 
@@ -877,33 +803,18 @@ void gradient (char * args){
     if (is_valid_channel_number(channel)){
         len = ledstring.channel[channel].count;;
     }
-    if (args!=NULL){
-        args = read_val(args, value, MAX_VAL_LEN);
-		channel = atoi(value)-1;
-        if (is_valid_channel_number(channel)){
-            len = ledstring.channel[channel].count;;
-        }
-        if (*args!=0){
-            args = read_val(args, value, MAX_VAL_LEN);
-            component=toupper(value[0]);
-            if(*args!=0){
-                args = read_val(args, value, MAX_VAL_LEN);
-                startlevel=atoi(value);
-                if(*args!=0){
-                    args = read_val(args, value, MAX_VAL_LEN);
-                    endlevel = atoi(value);
-                    if(*args!=0){
-                        args = read_val(args, value, MAX_VAL_LEN);
-                        start=atoi(value);
-                        if (*args!=0){
-                            args = read_val(args, value, MAX_VAL_LEN);
-                            len = atoi(value);
-                        }
-                    }
-                }
-            }
-        }
-    }
+	
+	args = read_channel(args, & channel);
+	if (is_valid_channel_number(channel)){
+		len = ledstring.channel[channel].count;;
+	}	
+	args = read_val(args, value, MAX_VAL_LEN);
+	component=toupper(value[0]);
+	args = read_int(args, & startlevel);
+	args = read_int(args, & endlevel);
+	args = read_int(args, & start);
+	args = read_int(args, & len);
+
             
 	if (is_valid_channel_number(channel)){
         if (startlevel>0xFF) startlevel=255;
@@ -960,45 +871,37 @@ void add_random(char * args){
     if (is_valid_channel_number(channel)){
         len = ledstring.channel[channel].count;;
     }
-    if (args!=NULL){
-        args = read_val(args, value, MAX_VAL_LEN);
-		channel = atoi(value)-1;
-        if (is_valid_channel_number(channel)){
-            len = ledstring.channel[channel].count;;
-        }
-        if(*args!=0){
-            args = read_val(args, value, MAX_VAL_LEN);
-            start=atoi(value);
-            if (*args!=0){
-                args = read_val(args, value, MAX_VAL_LEN);
-                len = atoi(value);
-                if (*args!=0){
-                    args = read_val(args, value, MAX_VAL_LEN);
-                    use_r=0, use_g=0, use_b=0, use_w=0, use_l=0;
-                    unsigned char i;
-                    for (i=0;i<strlen(value);i++){
-                        switch(toupper(value[i])){
-                            case 'R':
-                                use_r=1;
-                                break;
-                            case 'G':
-                                use_g=1;
-                                break;
-                            case 'B':
-                                use_b=1;
-                                break;
-                            case 'W':
-                                use_w=1;
-                                break;
-                            case 'L':
-                                use_l=1;
-                                break;
-                        }
-                    }
-                }
-            }
-        }
-    }
+	
+	args = read_channel(args, & channel);
+	if (is_valid_channel_number(channel)){
+		len = ledstring.channel[channel].count;;
+	}	
+	args = read_int(args, & start);
+	args = read_int(args, & len);
+	if (args!=NULL && *args!=0){
+		args = read_val(args, value, MAX_VAL_LEN);
+		use_r=0, use_g=0, use_b=0, use_w=0, use_l=0;
+		unsigned char i;
+		for (i=0;i<strlen(value);i++){
+			switch(toupper(value[i])){
+				case 'R':
+					use_r=1;
+					break;
+				case 'G':
+					use_g=1;
+					break;
+				case 'B':
+					use_b=1;
+					break;
+				case 'W':
+					use_w=1;
+					break;
+				case 'L':
+					use_l=1;
+					break;
+			}
+		}
+	}	
     
     if (is_valid_channel_number(channel)){
 
@@ -1024,6 +927,154 @@ void add_random(char * args){
     }else{
         fprintf(stderr,"Invalid channel number, did you call setup and init?\n");
     }
+}
+
+typedef struct {
+	int led_index;
+	int brightness;
+	int delay; //random delay to delay effect
+	int start_brightness;
+	int start_color;
+}fade_in_out_led_status;
+
+//finds a random index which is currently not used by random_fade_in_out
+int find_random_free_led_index(fade_in_out_led_status * led_status, unsigned int count, unsigned int start, unsigned int len){
+	int i,j,k;
+	int index=-1;
+	int found = 1;
+	k=0;
+	//first try random
+	while (found && k < (len * 2)){ //k to prevent endless loop
+		index = start + (rand() % len);
+		found = 0;
+		for (j=0; j<count;j++) {
+			if (led_status[j].led_index == index){
+				found = 1;
+				break;
+			}
+		}
+		k++;
+	}
+	if (found){
+		index = -1;
+		//if count is too high just search for one index still available
+		for (j=start;j<start+len;j++){
+			found=0;
+			for (i=0; i<count;i++) {
+				if (led_status[i].led_index == j){
+					found = 1;//found it
+					break;
+				}
+			}
+			if (found==0){ //didn't find, can use this index
+				index=j;	
+				break;
+			}
+		}
+	}
+	return index;
+}
+
+//creates some kind of random blinking leds effect
+//random_fade_in_out <channel>,<duration Sec>,<count>,<delay>,<step>,<inc_dec>,<brightness>,<start>,<len>
+//duration = total max duration of effect
+//count = max number of leds that will fade in or out at same time
+//delay = delay between changes in brightness
+//step = ammount of brightness to increase between delays
+//inc_dec = if 1 brightness will start at <brightness> and decrease to initial brightness of the led, else it will start low and go up
+//start  = start at led position
+//len  = stop at led position
+//change_color = if 1 use color to change the color of the led
+//color  = use specific color, after blink effect color will return to initial
+void random_fade_in_out(char * args){
+	unsigned int channel=0, start=0, len=0, count=0, duration=10, delay=1, step=20, sync_delay=0, inc_dec=1, brightness=255,color=0, change_color=0, i;
+    fade_in_out_led_status *led_status;
+	
+    if (is_valid_channel_number(channel)){
+        len = ledstring.channel[channel].count;;
+    }
+	
+	args = read_channel(args, & channel);
+	if (is_valid_channel_number(channel)){
+		len = ledstring.channel[channel].count;
+		count = len / 3;
+		args = read_int(args, & duration);
+		args = read_int(args, & count);
+		args = read_int(args, & delay);		
+		args = read_int(args, & step);
+		args = read_int(args, & sync_delay);
+		args = read_int(args, & inc_dec);
+		args = read_int(args, & brightness);
+		args = read_int(args, & start);
+		args = read_int(args, & len);
+		args = read_int(args, & change_color);
+		args = read_color(args, & color, ledstring.channel[channel].color_size);
+		
+		if (start>=ledstring.channel[channel].count) start=0;
+        if ((start+len)>ledstring.channel[channel].count) len=ledstring.channel[channel].count-start;
+		if (count>len) count = len;
+		
+		if (debug) printf("random_fade_in_out %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n", channel, count, delay, step, sync_delay, inc_dec, brightness, start, len, color);
+		
+		led_status = (fade_in_out_led_status *)malloc(count * sizeof(fade_in_out_led_status));
+		ws2811_led_t * leds = ledstring.channel[channel].leds;
+		
+		ws2811_render(&ledstring);
+		
+		for (i=0; i<count;i++){ //first assign count random leds for fading
+			int index=find_random_free_led_index(led_status, count, start, len);
+			led_status[i].led_index = index;
+			if (index!=-1){ //assign
+				led_status[i].delay = sync_delay ?  (rand() % sync_delay) : 0;
+				led_status[i].start_brightness = leds[index].brightness;
+				led_status[i].start_color = leds[index].color;
+				led_status[i].led_index = index;
+				led_status[i].brightness = brightness;
+			}
+		}
+		
+		unsigned int start_time = time(0);
+		
+		while ((time(0) - start_time) < duration){
+			for (i=0;i<count; i++){
+				if (led_status[i].delay<=0){
+					if (led_status[i].led_index!=-1){
+						leds[led_status[i].led_index].brightness = led_status[i].brightness;
+						if (change_color) leds[led_status[i].led_index].color = color;
+						if (inc_dec) led_status[i].brightness--;
+						if ((inc_dec==1 && led_status[i].brightness <= led_status[i].start_brightness) || (inc_dec==0 && led_status[i].brightness >= led_status[i].start_brightness)){
+							leds[led_status[i].led_index].brightness = led_status[i].start_brightness;
+							if (change_color) leds[led_status[i].led_index].color = led_status[i].start_color;
+							int index=find_random_free_led_index(led_status, count, start, len);
+							if (index!=-1){	
+								led_status[i].led_index = index;
+								led_status[i].brightness = brightness;
+								led_status[i].start_brightness = leds[led_status[i].led_index].brightness;
+								led_status[i].start_color = leds[led_status[i].led_index].color;
+								led_status[i].delay = sync_delay ?  (rand() % sync_delay) : 0;
+							}
+						}
+					}
+				}else{
+					led_status[i].delay--;
+				}
+			}		
+			ws2811_render(&ledstring);
+			usleep(delay * 1000);				
+		}
+		
+		for (i=0;i<count;i++){
+			leds[led_status[i].led_index].brightness = led_status[i].start_brightness;
+			if (change_color) leds[led_status[i].led_index].color = led_status[i].start_color;
+			ws2811_render(&ledstring);
+		}
+		
+		free (led_status);
+	}else{
+		fprintf(stderr, "Invalid channel number, did you call setup and init?\n");
+		
+	}
+	
 }
 
 void start_loop (char * args){
@@ -1548,6 +1599,8 @@ void execute_command(char * command_line){
             global_brightness(arg);
 		}else if (strcmp(command, "blink")==0){
 			blink(arg);
+		}else if (strcmp(command, "random_fade_in_out")==0){
+			random_fade_in_out(arg);
 		#ifdef USE_JPEG
 		}else if (strcmp(command, "readjpg")==0){
 			readjpg(arg);
@@ -1711,7 +1764,7 @@ int main(int argc, char *argv[]){
                 named_pipe_file = (char*)malloc(strlen(DEFAULT_DEVICE_FILE)+1);
                 strcpy(named_pipe_file, DEFAULT_DEVICE_FILE);
             }
-            printf ("Opening %s as named pipe.", named_pipe_file);
+            printf ("Opening %s as named pipe.\n", named_pipe_file);
             remove(named_pipe_file);
             mkfifo(named_pipe_file,0777);
             chmod(named_pipe_file,0777);
@@ -1787,6 +1840,11 @@ int main(int argc, char *argv[]){
                 }
                 break;
             case MODE_NAMED_PIPE:
+				input_file = fopen(named_pipe_file, "r");
+				//remove(named_pipe_file);
+                //mkfifo(named_pipe_file, 0777);
+                //chmod(named_pipe_file, 0777);
+				break;
             case MODE_STDIN:
                 usleep(10000);
                 break;

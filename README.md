@@ -195,6 +195,22 @@ delay
 		<len>							#number of LEDs to blink starting at startled
 ```
 
+* `random_fade_in_out` creates some kind of random blinking/fading leds effect
+```
+	random_fade_in_out
+		<channel>,						#channel number to use
+		<duration Sec>,					#total max duration of effect
+		<count>,						#max number of leds that will fade in or out at same time
+		<delay>,						# delay between changes in brightness
+		<step>,							#ammount of brightness to increase/decrease between delays
+		<inc_dec>,						#inc_dec = if 1 brightness will start at <brightness> and decrease to initial brightness of the led, else it will start low and go up
+		<brightness>,					#brightness to start with when blinking starts
+		<start>,						#start position
+		<len>,							#number of leds
+		<change_color>,					#if > 1 the led will change color when fading starts
+		<color>							#color to use
+```
+
 # Special keywords
 You can add `do ... loop` to repeat commands when using a file or TCP connection.
 
