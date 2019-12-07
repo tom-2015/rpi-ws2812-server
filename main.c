@@ -1066,9 +1066,8 @@ void random_fade_in_out(char * args){
 		for (i=0;i<count;i++){
 			leds[led_status[i].led_index].brightness = led_status[i].start_brightness;
 			if (change_color) leds[led_status[i].led_index].color = led_status[i].start_color;
-			ws2811_render(&ledstring);
 		}
-		
+		ws2811_render(&ledstring);
 		free (led_status);
 	}else{
 		fprintf(stderr, "Invalid channel number, did you call setup and init?\n");
