@@ -112,7 +112,9 @@ Here is a list of commands you can type or send to the program. All commands hav
         <channel>,                       #channel to fill with a gradient/rainbow (default 1)
         <count>,                         #number of times to repeat the rainbow in the channel (default 1)
         <start_color>,                   #color to start with value from 0-255 where 0 is red and 255 pink (default is 0)
-        <end_color>                      #color to end with value from 0-255 where 0 is red and 255 pink (default 255)
+        <end_color>,                     #color to end with value from 0-255 where 0 is red and 255 pink (default 255)
+		<start>,		   				 #start at this led position
+		<len>			   				 #number of leds to change
 
 *fill command fills number of leds with a color value
     fill
@@ -201,9 +203,29 @@ Here is a list of commands you can type or send to the program. All commands hav
 		<brightness>,					#brightness to start with when blinking starts
 		<start>,						#start position
 		<len>,							#number of leds
-		<change_color>,					#if > 1 the led will change color when fading starts
-		<color>							#color to use
+		<color>							#color to use for blinking leds
+		
+* chaser makes a chaser light 
+	chaser
+		<channel>,						#channel number to use
+		<duration>,						#max number of seconds the event may take in seconds (default 10) use 0 to make chaser run forever
+		<color>,						#color 000000-FFFFFF to use for chasing leds
+		<direction>,					#direction 1 or 0 to indicate forward/backwards direction of movement
+		<delay>,						#delay between moving one pixel (milliseconds) default is 10ms
+		<start>,						#start effect at this led position
+		<len>,							#number of leds to change starting at start
+		<brightness>,					#brightness value of chasing leds (0-255) default is 255
+		<loops>							#max number of loops, use 0 to loop forever / duration time
 
+* color_change will slowly change all leds from one color to another 
+	color_change
+		<channel>,						#channel number to use
+		<start_color>,					#color to start with value from 0-255 where 0 is red and 255 pink (default is 0) 
+		<stop_color>,					#color to end with value from 0-255 where 0 is red and 254 pink (default is 255) 
+		<duration>,						#total number of ms event should take, default is 10 seconds
+		<start>,						#start effect at this led position
+		<len>							#number of leds to change starting at start
+		
 		
 #Special keywords
 You can add 'do ... loop' to repeat commands when using a file or TCP connection.
@@ -237,7 +259,7 @@ sudo ./ws2812svr -tcp
 Then run the php code from the webserver:
 
 //create a rainbow for 10 leds on channel 1:
-send_to_leds("setup channel_1_count=10;rainbow;brightness 1,32;");
+send_to_leds("setup 1,10;init;brightness 1,32;");
 function send_to_leds ($data){
     $sock = fsockopen("127.0.0.1", 9999);
     fwrite($sock, $data);
