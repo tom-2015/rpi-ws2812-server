@@ -10,6 +10,7 @@
 #include <netinet/in.h>
 #include <fcntl.h>
 #include <sys/mman.h>
+#include <sys/time.h>
 #include <signal.h>
 #include <pthread.h>
 #include <ctype.h>
@@ -336,6 +337,13 @@ char * read_operation(char * args, char * op){
 	return args;
 }
 
+//returns time stamp in ms
+unsigned long long time_ms(){
+	struct timeval tp;
+	gettimeofday(&tp, NULL);
+	return tp.tv_sec * 1000 + tp.tv_usec / 1000;
+}
+
 //initializes channels
 //init <frequency>,<DMA>
 void init_channels(char * args){
@@ -519,6 +527,38 @@ void render(char * args){
 	}
 }
 
+void rotate_strip(int channel, int nplaces, int direction, unsigned int new_color, int use_new_color, int new_brightness){
+	ws2811_led_t tmp_led;
+    ws2811_led_t * leds = ledstring.channel[channel].leds;
+    unsigned int led_count = ledstring.channel[channel].count;
+	unsigned int n,i;
+	for(n=0;n<nplaces;n++){
+		if (direction==1){
+			tmp_led = leds[0];
+			for(i=1;i<led_count;i++){
+				leds[i-1] = leds[i]; 
+			}
+			if (use_new_color){
+				leds[led_count-1].color=new_color;
+				leds[led_count-1].brightness=new_brightness;
+			}else{
+				leds[led_count-1]=tmp_led;
+			}
+		}else{
+			tmp_led = leds[led_count-1];
+			for(i=led_count-1;i>0;i--){
+				leds[i] = leds[i-1]; 
+			}
+			if (use_new_color){
+				leds[0].color=new_color;	
+				leds[0].brightness=new_brightness;
+			}else{
+				leds[0]=tmp_led;		
+			}
+		}
+	}	
+}
+
 //shifts all colors 1 position
 //rotate <channel>,<places>,<direction>,<new_color>,<new_brightness>
 //if new color is set then the last led will have this color instead of the color of the first led
@@ -531,6 +571,7 @@ void rotate(char * args){
 	args = read_int(args, & nplaces);
 	args = read_int(args, & direction);
 	if (is_valid_channel_number(channel)){
+		use_new_color= (args!=NULL && *args!=0);
 		args = read_color_arg(args, & new_color, ledstring.channel[channel].color_size);
 		read_brightness(args, & new_brightness);
 	}
@@ -538,35 +579,7 @@ void rotate(char * args){
 	if (debug) printf("Rotate %d %d %d %d %d\n", channel, nplaces, direction, new_color, new_brightness);
 	
     if (is_valid_channel_number(channel)){
-        ws2811_led_t tmp_led;
-        ws2811_led_t * leds = ledstring.channel[channel].leds;
-        unsigned int led_count = ledstring.channel[channel].count;
-        unsigned int n,i;
-        for(n=0;n<nplaces;n++){
-            if (direction==1){
-                tmp_led = leds[0];
-                for(i=1;i<led_count;i++){
-                    leds[i-1] = leds[i]; 
-                }
-                if (use_new_color){
-                    leds[led_count-1].color=new_color;
-                    leds[led_count-1].brightness=new_brightness;
-                }else{
-                    leds[led_count-1]=tmp_led;
-                }
-            }else{
-                tmp_led = leds[led_count-1];
-                for(i=led_count-1;i>0;i--){
-                    leds[i] = leds[i-1]; 
-                }
-                if (use_new_color){
-                    leds[0].color=new_color;	
-                    leds[0].brightness=new_brightness;
-                }else{
-                    leds[0]=tmp_led;		
-                }
-            }
-        }
+		rotate_strip(channel, nplaces, direction, new_color, use_new_color, new_brightness);
     }else{
         fprintf(stderr,"Invalid channel number, did you call setup and init?\n");
     }
@@ -976,7 +989,7 @@ int find_random_free_led_index(fade_in_out_led_status * led_status, unsigned int
 }
 
 //creates some kind of random blinking leds effect
-//random_fade_in_out <channel>,<duration Sec>,<count>,<delay>,<step>,<inc_dec>,<brightness>,<start>,<len>
+//random_fade_in_out <channel>,<duration Sec>,<count>,<delay>,<step>,<sync_delay>,<inc_dec>,<brightness>,<start>,<len>,<color>
 //duration = total max duration of effect
 //count = max number of leds that will fade in or out at same time
 //delay = delay between changes in brightness
@@ -984,8 +997,8 @@ int find_random_free_led_index(fade_in_out_led_status * led_status, unsigned int
 //inc_dec = if 1 brightness will start at <brightness> and decrease to initial brightness of the led, else it will start low and go up
 //start  = start at led position
 //len  = stop at led position
-//change_color = if 1 use color to change the color of the led
 //color  = use specific color, after blink effect color will return to initial
+//brightness = max brightness of blinking led
 void random_fade_in_out(char * args){
 	unsigned int channel=0, start=0, len=0, count=0, duration=10, delay=1, step=20, sync_delay=0, inc_dec=1, brightness=255,color=0, change_color=0, i;
     fade_in_out_led_status *led_status;
@@ -1007,8 +1020,9 @@ void random_fade_in_out(char * args){
 		args = read_int(args, & brightness);
 		args = read_int(args, & start);
 		args = read_int(args, & len);
-		args = read_int(args, & change_color);
-		args = read_color(args, & color, ledstring.channel[channel].color_size);
+		change_color = args!=NULL && *args!=0;
+		args = read_color_arg(args, & color, ledstring.channel[channel].color_size);
+		args = read_brightness(args, & brightness);
 		
 		if (start>=ledstring.channel[channel].count) start=0;
         if ((start+len)>ledstring.channel[channel].count) len=ledstring.channel[channel].count-start;
@@ -1075,6 +1089,140 @@ void random_fade_in_out(char * args){
 	}
 	
 }
+
+
+//chaser makes leds run accross the led strip
+//chaser <channel>,<duration>,<color>,<count>,<direction>,<delay>,<start>,<len>,<brightness>,<loops>
+//channel = 1
+//duration = time in seconds, or 0 4ever
+//color = color to use
+//count = number of leds
+//direction = scroll direction
+//delay = delay between moving the leds, speed
+//start = start index led (default 0)
+//len = length of the chaser (default enitre strip)
+//brightness = brightness of the chasing leds
+//loops = max number of chasing loops, 0 = 4ever, default = 0
+void chaser(char * args){
+	unsigned int channel=0, direction=1, duration=10, delay=10, color=255, brightness=255, loops=0;
+	int i, n, index, len=0, count=1, start=0;
+	
+	args = read_channel(args, & channel);
+
+	if (is_valid_channel_number(channel)){
+		len = ledstring.channel[channel].count;
+		args = read_int(args, & duration);
+		args = read_color_arg(args, & color, ledstring.channel[channel].color_size);
+		args = read_int(args, & count);
+		args = read_int(args, & direction);
+		args = read_int(args, & delay);
+		args = read_int(args, & start);
+		args = read_int(args, & len);
+		args = read_brightness(args, & brightness);
+		args = read_int(args, & loops);
+	}
+	
+	if (is_valid_channel_number(channel)){
+		if (start>=ledstring.channel[channel].count) start=0;
+		if ((start+len)>ledstring.channel[channel].count) len=ledstring.channel[channel].count-start;
+		if (count>len) count = len;
+		
+		if (debug) printf("chaser %d %d %d %d %d %d %d %d %d %d\n", channel, duration, color, count, direction, delay, start, len, brightness, loops);
+	
+		ws2811_led_t * org_leds = malloc(len * sizeof(ws2811_led_t));
+		ws2811_led_t * leds = ledstring.channel[channel].leds;
+		memcpy(org_leds, &leds[start], len * sizeof(ws2811_led_t)); //create a backup of original leds
+		
+		int loop_count=0;
+		
+		unsigned int start_time = time(0);
+		while ((((time(0) - start_time) < duration) || duration==0) && (loops==0 || loops < loop_count)){
+			ws2811_led_t tmp_led;
+			
+			for (n=0;n<count;n++){
+				index = direction==1 ? i - n: len - i + n;
+				if (loop_count>0 || (index > 0 && index < len)){
+					index = (index + len) % len;
+					leds[start + index].color = color;
+					leds[start + index].brightness = brightness;	
+				}
+			}
+			
+			ws2811_render(&ledstring);
+			usleep(delay * 1000);
+			
+			for (n=0;n<count;n++){
+				index = direction==1 ? i - n : len - i + n;
+				index = (index + len) % len;			
+				leds[start + index].color = org_leds[index].color;
+				leds[start + index].brightness = org_leds[index].brightness;	
+			}
+			
+			i++;
+			i = i % len;
+			if (i==0){
+				loop_count++;
+			}
+		}	
+	
+		memcpy(org_leds, & leds[start], len * sizeof(ws2811_led_t));
+		free(org_leds);
+	}else{
+		fprintf(stderr, "Invalid channel number, did you call setup and init?\n");
+	}
+}
+
+
+//fills pixels with rainbow effect
+//count tells how many rainbows you want
+//color_change <channel>,<startcolor>,<stopcolor>,<duration>,<start>,<len>
+//start and stop = color values on color wheel (0-255)
+void color_change(char * args) {
+	int channel=0, count=1,start=0,stop=255,startled=0, len=0, duration=10000, delay=10;
+	
+    if (is_valid_channel_number(channel)) len=ledstring.channel[channel].count;
+	args = read_channel(args, & channel);
+	if (is_valid_channel_number(channel)) len=ledstring.channel[channel].count;
+	args = read_int(args, & start);
+	args = read_int(args, & stop);
+	args = read_int(args, & duration);
+	args = read_int(args, & startled);
+	args = read_int(args, & len);
+	
+	if (is_valid_channel_number(channel)){
+        if (start<0 || start > 255) start=0;
+        if (stop<0 || stop > 255) stop = 255;
+        if (startled<0) startled=0;
+        if (startled+len> ledstring.channel[channel].count) len = ledstring.channel[channel].count-startled;
+        
+        if (debug) printf("color_change %d,%d,%d,%d,%d,%d\n", channel, start, stop, duration, startled, len);
+        
+        int numPixels = len; //ledstring.channel[channel].count;;
+        int i, j;
+        ws2811_led_t * leds = ledstring.channel[channel].leds;
+		
+		unsigned long long start_time = time_ms();
+		unsigned long long curr_time = time_ms() - start_time;
+		
+		while (curr_time < duration){
+			unsigned int color = deg2color(abs(stop-start) * curr_time / duration + start);
+			
+			for(i=0; i<numPixels; i++) {
+				leds[startled+i].color = color;
+			}			
+			
+			ws2811_render(&ledstring);
+			usleep(delay * 1000);	
+			curr_time = time_ms() - start_time;			
+		}
+		
+		
+
+    }else{
+        fprintf(stderr,"Invalid channel number, did you call setup and init?\n");
+    }
+}
+
 
 void start_loop (char * args){
     if (mode==MODE_FILE){
@@ -1600,6 +1748,10 @@ void execute_command(char * command_line){
 			blink(arg);
 		}else if (strcmp(command, "random_fade_in_out")==0){
 			random_fade_in_out(arg);
+		}else if (strcmp(command, "chaser")==0){
+			chaser(arg);
+		}else if (strcmp(command, "color_change")==0){
+			color_change(arg);
 		#ifdef USE_JPEG
 		}else if (strcmp(command, "readjpg")==0){
 			readjpg(arg);
