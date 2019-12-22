@@ -1,0 +1,13 @@
+[Unit]
+Description=WS2812 Server
+After=network.target
+
+[Service]
+# Change this to match your install directory
+# Send stdout and stderr to /dev/null because RAM might overflow otherwise
+ExecStart=/usr/local/bin/ws2812svr -c /etc/ws2812svr.conf > /dev/null 2&>1
+Restart=on-failure
+User=root
+
+[Install]
+WantedBy=multi-user.target

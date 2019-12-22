@@ -226,7 +226,32 @@ Here is a list of commands you can type or send to the program. All commands hav
 		<start>,						#start effect at this led position
 		<len>							#number of leds to change starting at start
 		
-		
+
+* fly_in fill entire string with given brightness level, moving leds from left/right untill all leds have brightness level or a given color 
+	fly_in
+		<channel>,						#channel number to use
+		<direction>,					#direction where to start with fly in effect (default 1)
+		<delay>,						#delay between moving pixels in ms (default 10ms)
+		<brightness>,					#final brightness of all leds default 255 or full ON
+		<start>,						#start effect at this led position
+		<len>,							#number of leds to change starting at start
+		<start_brightness>,				#at beginning give all leds this brightness value
+		<color>							#final color of the leds default is to use the current color
+	NOTICE: first fill entire strip with a color if leaving color argument default (use fill <channel>,<color>)
+
+* fly_out fill entire string with given brightness level, moving leds from left/right untill all leds have brightness level or a given color 
+	fly_out
+		<channel>,						#channel number to use
+		<direction>,					#direction where to start with fly out effect (default 1)
+		<delay>,						#delay between moving pixels in ms (default 10ms)
+		<brightness>,					#brightness of led that is moving out default is 255
+		<start>,						#start effect at this led position
+		<len>,							#number of leds to change starting at start
+		<end_brightness>,				#brightness of all leds at end, default is 0 = OFF
+		<color>							#final color of the leds default is to use the current color
+	NOTICE: first fill entire strip with a color before calling this function (use fill <channel>,<color>)
+
+
 #Special keywords
 You can add 'do ... loop' to repeat commands when using a file or TCP connection.
 
@@ -234,7 +259,16 @@ For example the commands between do and loop will be executed 10 times:
 do
    <enter commands here to repeat>
 loop 10
-(Endless loops can be made by removing the '10')
+
+Endless loops can be made by removing the '10'.
+Inside a loop you can use {i} for the loop counter as function argument where i is the loop index (for loop inside loop)
+For example {0} will be automatically replace by 0,1,2,3,4:
+
+do
+	fill 1, FF0000, {0}, 1
+loop 5
+render
+
 
 For 'do loop' to work from a TCP connection we must start a new thread. 
 This thread will continue to execute the commands when the client disconnects from the TCP/IP connection. 
@@ -275,3 +309,28 @@ function send_to_leds ($data){
   Creates a file called `/dev/ws281x` where you can write you commands to with any other programming language (do-loop not supported here).
 * sudo ./ws2812svr -i "setup 1,4,5;init;"
   Initializes with command setup 1,4,5  and command init
+  
+#Running as a service
+To run as service run make install after compilation and adjust the config file in /etc/ws2812svr.conf
+```
+make
+sudo make install
+```
+
+After installing service it will run by default in TCP mode on port 9999, if you want to change this you must edit the config file:
+```
+sudo nano /etc/ws2812svr.conf
+```
+change the mode to:
+tcp for TCP mode (change the port= setting)
+file for file mode (change the file= setting for location of file)
+pipe for named pipe mode (change the pipe= setting for the location of the named pipe)
+mode must be first setting in the conf file!
+init setting can be used to initialize the led count and type fill color,...
+```
+mode=tcp
+port=9999
+file=/home/pi/test.txt
+pipe=/dev/leds
+init=
+```

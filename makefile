@@ -50,3 +50,13 @@ endif
 
 clean:
 	rm *.o
+	
+install: ws2812svr
+	cp ws2812svr.service  /etc/systemd/system/ws2812svr.service
+	cp -n ws2812svr.conf /etc/ws2812svr.conf
+	cp ws2812svr /usr/local/bin
+	systemctl daemon-reload
+	-systemctl stop ws2812svr.service
+	systemctl enable ws2812svr.service
+	systemctl start ws2812svr.service
+	

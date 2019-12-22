@@ -29,6 +29,8 @@
 #define MODE_FILE 2
 #define MODE_TCP 3
 
+#define ERROR_INVALID_CHANNEL "Invalid channel number, did you call setup and init?\n"
+
 //USE_JPEG and USE_PNG is enabled through make file
 //to disable compilation of PNG / or JPEG use:
 //make PNG=0 JPEG=0
@@ -96,6 +98,7 @@ typedef struct {
 FILE *    input_file;         //the named pipe handle
 char *    command_line;       //current command line
 char *    named_pipe_file;    //holds named pipe file name 
+char *    initialize_cmd=NULL; //initialze command
 int       command_index;      //current position
 int       command_line_size;  //max bytes in command line
 int       exit_program=0;     //set to 1 to exit the program
@@ -384,7 +387,7 @@ void global_brightness(char * args){
                 ledstring.channel[channel].brightness=brightness;
                 if(debug) printf("Global brightness %d, %d\n", channel, brightness);
             }else{
-                fprintf(stderr,"Invalid channel number, did you call setup and init?\n");
+                fprintf(stderr,ERROR_INVALID_CHANNEL);
             }
         }
     }
@@ -523,7 +526,7 @@ void render(char * args){
 	if (is_valid_channel_number(channel)){
 		ws2811_render(&ledstring);
 	}else{
-		fprintf(stderr,"Invalid channel number, did you call setup and init?\n");
+		fprintf(stderr,ERROR_INVALID_CHANNEL);
 	}
 }
 
@@ -581,7 +584,7 @@ void rotate(char * args){
     if (is_valid_channel_number(channel)){
 		rotate_strip(channel, nplaces, direction, new_color, use_new_color, new_brightness);
     }else{
-        fprintf(stderr,"Invalid channel number, did you call setup and init?\n");
+        fprintf(stderr,ERROR_INVALID_CHANNEL);
     }
 }
 
@@ -616,7 +619,7 @@ void rainbow(char * args) {
             leds[startled+i].color = deg2color(abs(stop-start) * i * count / numPixels + start);
         }
     }else{
-        fprintf(stderr,"Invalid channel number, did you call setup and init?\n");
+        fprintf(stderr,ERROR_INVALID_CHANNEL);
     }
 }
 
@@ -664,7 +667,7 @@ void fill(char * args){
             }
         }
     }else{
-        fprintf(stderr,"Invalid channel number, did you call setup and init?\n");
+        fprintf(stderr,ERROR_INVALID_CHANNEL);
     }
 }
 
@@ -698,7 +701,7 @@ void brightness(char * args){
             leds[i].brightness=brightness;
         }
     }else{
-        fprintf(stderr,"Invalid channel number, did you call setup and init?\n");
+        fprintf(stderr,ERROR_INVALID_CHANNEL);
     }
 }
 
@@ -750,7 +753,7 @@ void fade (char * args){
             usleep(delay * 1000);
         } 
     }else{
-        fprintf(stderr,"Invalid channel number, did you call setup and init?\n");
+        fprintf(stderr,ERROR_INVALID_CHANNEL);
     }
 }
 
@@ -801,7 +804,7 @@ void blink (char * args){
             usleep(delay * 1000);
         } 
     }else{
-        fprintf(stderr,"Invalid channel number, did you call setup and init?\n");
+        fprintf(stderr,ERROR_INVALID_CHANNEL);
     }
 }
 
@@ -868,7 +871,7 @@ void gradient (char * args){
             flevel+=step;
         } 
     }else{
-        fprintf(stderr,"Invalid channel number, did you call setup and init?\n");
+        fprintf(stderr,ERROR_INVALID_CHANNEL);
     }
 }
 
@@ -938,7 +941,7 @@ void add_random(char * args){
             if (use_l) leds[start+i].brightness = l;
         }
     }else{
-        fprintf(stderr,"Invalid channel number, did you call setup and init?\n");
+        fprintf(stderr,ERROR_INVALID_CHANNEL);
     }
 }
 
@@ -1084,7 +1087,7 @@ void random_fade_in_out(char * args){
 		ws2811_render(&ledstring);
 		free (led_status);
 	}else{
-		fprintf(stderr, "Invalid channel number, did you call setup and init?\n");
+		fprintf(stderr, ERROR_INVALID_CHANNEL);
 		
 	}
 	
@@ -1168,7 +1171,7 @@ void chaser(char * args){
 		memcpy(org_leds, & leds[start], len * sizeof(ws2811_led_t));
 		free(org_leds);
 	}else{
-		fprintf(stderr, "Invalid channel number, did you call setup and init?\n");
+		fprintf(stderr, ERROR_INVALID_CHANNEL);
 	}
 }
 
@@ -1219,7 +1222,173 @@ void color_change(char * args) {
 		
 
     }else{
-        fprintf(stderr,"Invalid channel number, did you call setup and init?\n");
+        fprintf(stderr,ERROR_INVALID_CHANNEL);
+    }
+}
+
+//fly in pixels from left or right filling entire string with a color
+//fly_in <channel>,<direction>,<delay>,<brightness>,<start>,<len>,<start_brightness>,<color>
+//direction = 0/1 fly in from left or right default 1
+//delay = delay in ms between moving pixel, default 10ms
+//brightness = the final brightness of the leds that fly in
+//start  = where to start effect default 0
+//len = number of leds from start default length of strip
+//start_brightness = initial brightness for all leds default is 0 (black)
+//color = final color of the leds default is to use the current color
+//first have to call "fill <channel>,<color>" to initialze a color if you leave color default value
+void fly_in(char * args) {
+	int channel=0,start=0, len=0, brightness=255, delay=10, direction=1, start_brightness=0, use_color=0;
+	unsigned int color, tmp_color, repl_color;
+	
+	args = read_channel(args, & channel);
+	if (is_valid_channel_number(channel)) len=ledstring.channel[channel].count;
+	args = read_int(args, & direction);
+	args = read_int(args, & delay);
+	args = read_int(args, & brightness);
+	args = read_int(args, & start);
+	args = read_int(args, & len);
+	args = read_int(args, & start_brightness);
+	use_color = (args!=NULL && (*args)!=0);
+
+	if (is_valid_channel_number(channel)){
+		args = read_color_arg(args, & color, ledstring.channel[channel].color_size);		
+        if (start<0) start=0;
+        if (start+len> ledstring.channel[channel].count) len = ledstring.channel[channel].count-start;
+        
+        if (debug) printf("fly_in %d,%d,%d,%d,%d,%d,%d,%d,%d\n", channel, direction, delay, brightness, start, len, start_brightness, color, use_color);
+        
+        int numPixels = len; //ledstring.channel[channel].count;;
+        int i, j;
+        ws2811_led_t * leds = ledstring.channel[channel].leds;
+		
+		for (i=0;i<len;i++){
+			leds[start+i].brightness=start_brightness;
+		}
+		
+		ws2811_render(&ledstring);
+		for (i=0;i<len;i++){
+			if (use_color){
+				repl_color = color;
+			}else{
+				if (direction){
+					repl_color = leds[start+len-i-1].color;
+				}else{
+					repl_color = leds[start+i].color;
+				}
+			}
+			for (j=0;j<len - i;j++){
+				if (direction){
+					leds[start+j].brightness = brightness;
+					tmp_color = leds[start+j].color;
+					leds[start+j].color = repl_color;
+				}else{
+					leds[start+len-j-1].brightness = brightness;
+					tmp_color = leds[start+len-j-1].color;
+					leds[start+len-j-1].color = repl_color;
+				}
+				ws2811_render(&ledstring);
+				usleep(delay * 1000);
+				if (direction){
+					leds[start+j].brightness = start_brightness;	
+					leds[start+j].color = tmp_color;
+				}else{
+					leds[start+len-j-1].brightness = start_brightness;
+					leds[start+len-j-1].color = tmp_color;
+				}
+			}
+			if (direction){
+				leds[start+len-i-1].brightness = brightness;
+				leds[start+len-i-1].color = repl_color;
+			}else{
+				leds[start+i].brightness = brightness;
+				leds[start+i].color = repl_color;				
+			}
+			ws2811_render(&ledstring);
+			usleep(delay * 1000);		
+		}
+
+    }else{
+        fprintf(stderr,ERROR_INVALID_CHANNEL);
+    }
+}
+
+//fly out pixels from left or right filling entire string with black or a color/brightness
+//fly_out <channel>,<direction>,<delay>,<brightness>,<start>,<len>,<end_brightness>,<color>
+//direction = 0/1 fly out from left or right default 1
+//delay = delay in ms between moving pixel, default 10ms
+//brightness = the final brightness of the leds that fly in
+//start  = where to start effect default 0
+//len = number of leds from start default length of strip
+//end_brightness = brightness for all leds at the end, default is 0 = black
+//color = final color of the leds default is to use the current color
+//first have to call "fill <channel>,<color>" to initialze a color in each led before start fly_out
+void fly_out(char * args) {
+	int channel=0,start=0, len=0, delay=10, direction=1, brightness=255, use_color=0, end_brightness=0;
+	unsigned int color, tmp_color, repl_color;
+	
+	args = read_channel(args, & channel);
+	if (is_valid_channel_number(channel)) len=ledstring.channel[channel].count;
+	args = read_int(args, & direction);
+	args = read_int(args, & delay);
+	args = read_int(args, & brightness);
+	args = read_int(args, & start);
+	args = read_int(args, & len);
+	args = read_int(args, & end_brightness);
+	use_color = (args!=NULL && (*args)!=0);
+	
+	if (is_valid_channel_number(channel)){		
+		args = read_color_arg(args, & color, ledstring.channel[channel].color_size);
+        if (start<0) start=0;
+        if (start+len> ledstring.channel[channel].count) len = ledstring.channel[channel].count-start;
+        
+        if (debug) printf("fly_out %d,%d,%d,%d,%d,%d,%d,%d,%d\n", channel, direction, delay, brightness, start, len, end_brightness, color, use_color);
+        
+        int numPixels = len; //ledstring.channel[channel].count;;
+        int i, j;
+        ws2811_led_t * leds = ledstring.channel[channel].leds;
+		
+		ws2811_render(&ledstring);
+		for (i=0;i<len;i++){
+			if (direction){
+				repl_color = leds[start+i].color;
+			}else{
+				repl_color = leds[start+len-i-1].color;
+			}			
+			if (direction){				
+				leds[start+i].brightness = end_brightness;
+				if (use_color) leds[start+i].color = color;
+			}else{
+				leds[start+len-i-1].brightness = end_brightness;
+				if (use_color) leds[start+len-i-1].color = color;				
+			}
+			
+			for (j=0;j<=i;j++){
+				if (direction){
+					leds[start+i-j].brightness = brightness;
+					tmp_color = leds[start+i-j].color;
+					leds[start+i-j].color = repl_color;
+				}else{
+					leds[start+len-i-1+j].brightness = brightness;
+					tmp_color = leds[start+len-i-1+j].color;
+					leds[start+len-i-1+j].color = repl_color;
+				}
+				ws2811_render(&ledstring);
+				usleep(delay * 1000);
+				if (direction){
+					leds[start+i-j].brightness = end_brightness;	
+					leds[start+i-j].color = tmp_color;
+				}else{
+					leds[start+len-i-1+j].brightness = end_brightness;
+					leds[start+len-i-1+j].color = tmp_color;
+				}
+			}
+
+			ws2811_render(&ledstring);
+			usleep(delay * 1000);		
+		}
+
+    }else{
+        fprintf(stderr,ERROR_INVALID_CHANNEL);
     }
 }
 
@@ -1278,6 +1447,8 @@ void end_loop(char * args){
         }
     }
 }
+
+
 
 //read JPEG image and put pixel data to LEDS
 //readjpg <channel>,<FILE>,<start>,<len>,<offset>,<OR AND XOR NOT =>
@@ -1752,6 +1923,10 @@ void execute_command(char * command_line){
 			chaser(arg);
 		}else if (strcmp(command, "color_change")==0){
 			color_change(arg);
+		}else if (strcmp(command, "fly_in")==0){
+			fly_in(arg);
+		}else if (strcmp(command, "fly_out")==0){
+			fly_out(arg);
 		#ifdef USE_JPEG
 		}else if (strcmp(command, "readjpg")==0){
 			readjpg(arg);
@@ -1785,6 +1960,11 @@ void execute_command(char * command_line){
             printf("fade <channel>,<start_brightness>,<end_brightness>,<delay ms>,<step>,<start_led>,<len>\n");
             printf("gradient <channel>,<RGBWL>,<start_level>,<end_level>,<start_led>,<len>\n");
             printf("random <channel>,<start>,<len>,<RGBWL>\n");
+			printf("random_fade_in_out <channel>,<duration Sec>,<count>,<delay>,<step>,<sync_delay>,<inc_dec>,<brightness>,<start>,<len>,<color>");
+			printf("chaser <channel>,<duration>,<color>,<count>,<direction>,<delay>,<start>,<len>,<brightness>,<loops>\n");
+			printf("color_change <channel>,<startcolor>,<stopcolor>,<duration>,<start>,<len>\n");
+			printf("fly_in <channel>,<direction>,<delay>,<brightness>,<start>,<len>,<start_brightness>,<color>\n");
+			printf("fly_out <channel>,<direction>,<delay>,<brightness>,<start>,<len>,<end_brightness>,<color>\n");
 			#ifdef USE_JPEG
 			printf("readjpg <channel>,<file>,<LED start>,<len>,<JPEG Pixel offset>,<OR,AND,XOR,NOT,=>\n");
 			#endif
@@ -1879,6 +2059,70 @@ void start_tcpip(int port){
      tcp_wait_connection();
 }
 
+void load_config_file(char * filename){
+	FILE * file = fopen(filename, "r");
+	
+	if (debug) printf("Reading config file %s\n", filename);
+	
+	char line[1024];
+    while (fgets(line, sizeof(line), file) != NULL) {
+		char * val = strchr(line, '=');
+		char * cfg =  strtok(line, " =\t\r\n");
+		
+		if (val!=NULL) val++;
+		if (debug) printf("Reading Config line %s, cfg=%s, val=%s\n", line, cfg, val);
+		
+		if (val!=NULL) val = strtok(val, "\r\n");
+		while (val!=NULL && val[0]!=0 && (val[0]==' ' || val[0]=='\t')) val++;
+		
+		
+		if (strcmp(cfg, "mode")==0 && val!=NULL){
+			if (debug) printf("Setting mode %s\n", val);
+			if (strcmp(val, "tcp")==0){
+				mode = MODE_TCP;
+			}else if (strcmp(val, "file")==0){
+				mode = MODE_FILE;
+			}else if (strcmp(val, "pipe")==0){
+				mode = MODE_NAMED_PIPE;
+			}else{
+				fprintf(stderr, "Unknown mode %s\n", val);
+			}
+		}else if (strcmp(cfg, "file")==0 && val!=NULL){ 
+			if (mode==MODE_FILE){
+				if (debug) printf("Setting input file %s\n", val);
+				input_file = fopen(val, "r");
+			}
+		}else if (strcmp(cfg, "port")==0 && val!=NULL){
+			if (mode==MODE_TCP){
+				int port = atoi(val);
+				if (port==0) port=9999;
+				if (debug) printf("Using TCP port %d\n", port);
+				start_tcpip(port);
+			}
+		}else if (strcmp(cfg, "pipe")==0 && val!=NULL){
+			if (mode==MODE_NAMED_PIPE){
+				if (debug) printf("Opening named pipe %s\n", val);
+				named_pipe_file = (char*)malloc(strlen(val)+1);
+				strcpy(named_pipe_file, val);
+				remove(named_pipe_file);
+				mkfifo(named_pipe_file,0777);
+				chmod(named_pipe_file,0777);
+				input_file = fopen(named_pipe_file, "r");
+			}
+		}else if (strcmp(cfg, "init")==0 && val!=NULL){
+			if (strlen(val)>0){
+				if (debug) printf("Initialize cmd: %s\n", val);
+				initialize_cmd = (char*)malloc(strlen(val)+1);			
+				strcpy(initialize_cmd, val);
+			}
+		}
+        
+    }
+
+    fclose(file);
+	
+}
+
 //main routine
 int main(int argc, char *argv[]){
     int ret = 0;
@@ -1924,10 +2168,10 @@ int main(int argc, char *argv[]){
         }else if (strcmp(argv[arg_idx], "-f")==0){ //read commands / data from text file
             if (argc>arg_idx+1){
                 input_file = fopen(argv[arg_idx+1], "r");
-                printf("Opening %s.", argv[arg_idx+1]);
+                printf("Opening %s.\n", argv[arg_idx+1]);
 				arg_idx++;
             }else{
-                printf("Error you must enter a file name after -f option\n");
+                fprintf(stderr,"Error you must enter a file name after -f option\n");
                 exit(1);
             }
             mode = MODE_FILE;
@@ -1939,27 +2183,35 @@ int main(int argc, char *argv[]){
                 printf("Listening on %d.\n", port);
                 start_tcpip(port);
             }else{
-                printf("You must enter a port after -tcp option\n");
+                fprintf(stderr,"You must enter a port after -tcp option\n");
                 exit(1);
             }
             mode = MODE_TCP;
+		}else if (strcmp(argv[arg_idx], "-c")==0){ //load configuration file
+			if (argc>arg_idx+1){
+				load_config_file(argv[arg_idx+1]);
+			}else{
+				fprintf(stderr,"No configuration file given!\n");
+				exit(1);
+			}
         }else if (strcmp(argv[arg_idx], "-d")==0){ //turn debug on
 			debug=1;
 		}else if (strcmp(argv[arg_idx], "-i")==0){ //initialize command
 			if (argc>arg_idx+1){
 				arg_idx++;
-				for(i=0;i<strlen(argv[arg_idx]);i++){
-					process_character(argv[arg_idx][i]);
-				}
+				initialize_cmd = (char*)malloc(strlen(argv[arg_idx])+1);
+				strcpy(initialize_cmd, argv[arg_idx]);
 			}
 		}else if (strcmp(argv[arg_idx], "-?")==0){
+			printf("WS2812 Server program for Raspberry Pi V2.0");
 			printf("Command line options:\n");
-			printf("-p <pipename>       creates a named pipe at location <pipename> where you can write command to.\n");
-			printf("-f <filename>       read commands from <filename>\n");
-			printf("-tcp <port>         listen for TCP connection to receive commands from.\n");
-			printf("-d                  turn debug output on.\n");
-			printf("-i \"<commands>\"       initialize with <commands> (seperate and end with ;)\n");
-			printf("-?                  show this message.\n");
+			printf("-p <pipename>       	creates a named pipe at location <pipename> where you can write command to.\n");
+			printf("-f <filename>       	read commands from <filename>\n");
+			printf("-tcp <port>         	listen for TCP connection to receive commands from.\n");
+			printf("-d                  	turn debug output on.\n");
+			printf("-i \"<commands>\"       initialize with <commands> (seperate and end with a ;)\n");
+			printf("-c <filename>		    initializes using a configuration file (for running as deamon)\n");
+			printf("-?                  	show this message.\n");
 			return 0;
 		}
 		arg_idx++;
@@ -1971,6 +2223,14 @@ int main(int argc, char *argv[]){
 	}
 	
     int c;
+	
+	if (initialize_cmd!=NULL){
+		for(i=0;i<strlen(initialize_cmd);i++){
+			process_character(initialize_cmd[i]);
+		}
+		free(initialize_cmd);
+		initialize_cmd=NULL;
+	}
 	
 	while (exit_program==0) {
         if (mode==MODE_TCP){
@@ -2001,7 +2261,8 @@ int main(int argc, char *argv[]){
                 break;
             case MODE_FILE:
                 process_character('\n'); //end last line
-                if (ftell(input_file)==feof(input_file))  exit_program=1; //exit the program if we reached the end
+				exit_program=1; 
+                //if (ftell(input_file)==feof(input_file))  exit_program=1; //exit the program if we reached the end
                 break;
         }
 	  }
