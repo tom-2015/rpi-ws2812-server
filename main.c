@@ -1422,15 +1422,17 @@ void start_loop (char * args){
 
 void end_loop(char * args){
     int max_loops = 0; //number of wanted loops
+	int step = 1;
     if (args!=NULL){
-        max_loops = atoi(args);
+		args = read_int(args, &max_loops);
+		args = read_int(args, &step);
     }
     if (mode==MODE_FILE){
-        if (debug) printf ("loop %d \n", ftell(input_file));
+        if (debug) printf ("loop %d, %d, %d\n", ftell(input_file), max_loops, step);
         if (loop_index==0){ //no do found!
             fseek(input_file, 0, SEEK_SET);
         }else{
-            loops[loop_index-1].n_loops++;
+            loops[loop_index-1].n_loops+=step;
             if (max_loops==0 || loops[loop_index-1].n_loops<max_loops){ //if number of loops is 0 = loop forever
                 fseek(input_file, loops[loop_index-1].do_pos,SEEK_SET);
             }else{
@@ -1442,7 +1444,7 @@ void end_loop(char * args){
         if (loop_index==0){
             thread_read_index=0; 
         }else{
-            loops[loop_index-1].n_loops++;
+            loops[loop_index-1].n_loops+=step;
             if (max_loops==0 || loops[loop_index-1].n_loops<max_loops){ //if number of loops is 0 = loop forever
                 thread_read_index = loops[loop_index-1].do_pos;
             }else{
