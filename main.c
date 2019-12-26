@@ -249,6 +249,10 @@ char * read_int(char * args, int * value){
 	return args;
 }
 
+char * read_str(char * args, char * dst, size_t size){
+	return read_val(args, dst, size);
+}
+
 //reads unsigned integer from command argument buffer
 char * read_uint(char * args, unsigned int * value){
 	char svalue[MAX_VAL_LEN];
@@ -1451,8 +1455,9 @@ void end_loop(char * args){
 
 
 //read JPEG image and put pixel data to LEDS
-//readjpg <channel>,<FILE>,<start>,<len>,<offset>,<OR AND XOR NOT =>
+//readjpg <channel>,<FILE>,<start>,<len>,<offset>,<OR AND XOR NOT =>,<delay>
 //offset = where to start in JPEG file
+//DELAY = delay ms between 2 reads of LEN pixels, default=0 if 0 only <len> bytes at <offset> will be read
 #ifdef USE_JPEG
 void readjpg(char * args){
 	struct jpeg_decompress_struct cinfo;
@@ -1462,47 +1467,28 @@ void readjpg(char * args){
 	int channel=0;
 	char filename[MAX_VAL_LEN];
 	unsigned int start=0, len=0, offset=0;
-	int op=0;
+	int op=0,delay=0;
     
-    if (is_valid_channel_number(channel)){
-        len = ledstring.channel[channel].count;;
-    }
-    if (args!=NULL){
-        args = read_val(args, value, MAX_VAL_LEN);
-		channel = atoi(value)-1;
-        if (is_valid_channel_number(channel)){
-            len = ledstring.channel[channel].count;;
-        }
-        if(*args!=0){
-			args = read_val(args, value, MAX_VAL_LEN);
-			strcpy(filename, value);
-			if (*args!=0){
-				args = read_val(args, value, MAX_VAL_LEN);
-				start=atoi(value);
-				if (*args!=0){
-					args = read_val(args, value, MAX_VAL_LEN);
-					len = atoi(value);
-					if (*args!=0){
-						args = read_val(args, value, MAX_VAL_LEN);
-						offset = atoi(value);						
-						if (*args!=0){
-							args = read_val(args, value, MAX_VAL_LEN);
-							if (strcmp(value, "OR")==0) op=1;
-							else if (strcmp(value, "AND")==0) op=2;
-							else if (strcmp(value, "XOR")==0) op=3;
-							else if (strcmp(value, "NOT")==0) op=4;
-						}
-					}
-				}
-			}
-        }
-    }
+	args = read_channel(args, & channel);
+	if (is_valid_channel_number(channel)) len=ledstring.channel[channel].count;
+	args = read_str(args, filename, sizeof(filename));
+	args = read_int(args, &start);
+	args = read_int(args, &len);
+	args = read_int(args, &offset);
+	args = read_str(args, value, sizeof(value));
+	if (strcmp(value, "OR")==0) op=1;
+	else if (strcmp(value, "AND")==0) op=2;
+	else if (strcmp(value, "XOR")==0) op=3;
+	else if (strcmp(value, "NOT")==0) op=4;
+	args = read_int(args, &delay);
+	
     
     if (is_valid_channel_number(channel)){
 		FILE * infile;		/* source file */
 		int row_stride;		/* physical row width in output buffer */
-
-		if (debug) printf("readjpg %d,%s,%d,%d,%d,%d\n", channel, filename, start, len,offset,op);
+		
+		
+		if (debug) printf("readjpg %d,%s,%d,%d,%d,%d,%d\n", channel, filename, start, len, offset, op, delay);
 		
 		if ((infile = fopen(filename, "rb")) == NULL) {
 			fprintf(stderr, "Error: can't open %s\n", filename);
@@ -1530,7 +1516,7 @@ void readjpg(char * args){
 		jpeg_start_decompress(&cinfo);
 
 		row_stride = cinfo.output_width * cinfo.output_components;
-		
+
 		JSAMPARRAY buffer;	// Output row buffer
 		int i=0,jpg_idx=0,led_idx; //pixel index for current row, jpeg image, led string
 		buffer = (*cinfo.mem->alloc_sarray)((j_common_ptr) &cinfo, JPOOL_IMAGE, row_stride, 1);
@@ -1542,9 +1528,10 @@ void readjpg(char * args){
 		
 		led_idx=start; //start at this led index
 		
-		while (cinfo.output_scanline < cinfo.output_height) {
+		int eofstring=0;
+		while (eofstring==0 && cinfo.output_scanline < cinfo.output_height) {
 			jpeg_read_scanlines(&cinfo, buffer, 1);
-			for(i=0;i<row_stride;i++){
+			for(i=0;i<cinfo.image_width;i++){
 				if (jpg_idx>=offset){ //check jpeg offset
 					unsigned char r,g,b;
 					r = buffer[0][i*cinfo.output_components];
@@ -1576,6 +1563,16 @@ void readjpg(char * args){
 						}
 					}
 					led_idx++;
+					if ( led_idx==len){ 
+						if (delay!=0){//reset led index if we are at end of led string and delay
+							led_idx=0;
+							ws2811_render(&ledstring);
+							usleep(delay * 1000);
+						}else{
+							eofstring=1;
+							break;
+						}
+					}
 				}
 				jpg_idx++;
 			}
@@ -1589,11 +1586,12 @@ void readjpg(char * args){
 #endif
 
 //read PNG image and put pixel data to LEDS
-//readjpg <channel>,<FILE>,<BACKCOLOR>,<start>,<len>,<offset>,<OR AND XOR =>
+//readjpg <channel>,<FILE>,<BACKCOLOR>,<start>,<len>,<offset>,<OR AND XOR =>,<DELAY>
 //offset = where to start in PNG file
-//backcolor = color to use for transparent area, FF0000 = BLUE
+//backcolor = color to use for transparent area, FF0000 = RED
 //P = use the PNG backcolor (default)
 //W = use the alpha data for the White leds in RGBW LED strips
+//DELAY = delay ms between 2 reads of LEN pixels, default=0 if 0 only <len> bytes at <offset> will be read
 #ifdef USE_PNG
 void readpng(char * args){
 	struct jpeg_decompress_struct cinfo;
@@ -1606,52 +1604,29 @@ void readpng(char * args){
 	int op=0;
 	int backcolor=0;
     int backcolortype=0; //0 = use PNG backcolor, 1 = use given backcolor, 2 = no backcolor but use alpha for white leds
+	int delay=0;
 	
-	//read function arguments
-    if (is_valid_channel_number(channel)){
-        len = ledstring.channel[channel].count;;
-    }
-    if (args!=NULL){
-        args = read_val(args, value, MAX_VAL_LEN);
-		channel = atoi(value)-1;
-        if (is_valid_channel_number(channel)){
-            len = ledstring.channel[channel].count;;
-        }
-        if(*args!=0){
-			args = read_val(args, value, MAX_VAL_LEN);
-			strcpy(filename, value);
-			if (*args!=0){
-				args = read_val(args, value, MAX_VAL_LEN);
-				if (strlen(value)>=6){
-					if (is_valid_channel_number(channel)){
-						read_color(value, & backcolor, ledstring.channel[channel].color_size);
-						backcolortype=1;
-					}
-				}else if (strcmp(value, "W")==0){
-					backcolortype=2;
-				}
-				if (*args!=0){
-					args = read_val(args, value, MAX_VAL_LEN);
-					start=atoi(value);
-					if (*args!=0){
-						args = read_val(args, value, MAX_VAL_LEN);
-						len = atoi(value);
-						if (*args!=0){
-							args = read_val(args, value, MAX_VAL_LEN);
-							offset = atoi(value);						
-							if (*args!=0){
-								args = read_val(args, value, MAX_VAL_LEN);
-								if (strcmp(value, "OR")==0) op=1;
-								else if (strcmp(value, "AND")==0) op=2;
-								else if (strcmp(value, "XOR")==0) op=3;
-								else if (strcmp(value, "NOT")==0) op=4;
-							}
-						}
-					}
-				}
-			}
-        }
-    }
+	args = read_channel(args, & channel);
+	if (is_valid_channel_number(channel)) len=ledstring.channel[channel].count;
+	args = read_str(args, filename, sizeof(filename));
+	args = read_str(args, value, sizeof(filename));
+	if (strlen(value)>=6){
+		if (is_valid_channel_number(channel)){
+			read_color(value, & backcolor, ledstring.channel[channel].color_size);
+			backcolortype=1;
+		}
+	}else if (strcmp(value, "W")==0){
+		backcolortype=2;
+	}	
+	args = read_int(args, &start);
+	args = read_int(args, &len);
+	args = read_int(args, &offset);
+	args = read_str(args, value, sizeof(value));
+	if (strcmp(value, "OR")==0) op=1;
+	else if (strcmp(value, "AND")==0) op=2;
+	else if (strcmp(value, "XOR")==0) op=3;
+	else if (strcmp(value, "NOT")==0) op=4;
+	args = read_int(args, &delay);
 	
 	if (is_valid_channel_number(channel)){
 		FILE * infile;		/* source file */
@@ -1660,7 +1635,10 @@ void readpng(char * args){
 		uch *image_data;
 		uch bg_red=0, bg_green=0, bg_blue=0;
 
-		if (debug) printf("readpng %d,%s,%d,%d,%d,%d,%d\n", channel, filename, backcolor, start, len,offset,op);
+		if (start<0) start=0;
+        if (start+len> ledstring.channel[channel].count) len = ledstring.channel[channel].count-start;
+		
+		if (debug) printf("readpng %d,%s,%d,%d,%d,%d,%d,%d\n", channel, filename, backcolor, start, len,offset,op, delay);
 		
 		if ((infile = fopen(filename, "rb")) == NULL) {
 			fprintf(stderr, "Error: can't open %s\n", filename);
@@ -1702,9 +1680,6 @@ void readpng(char * args){
 		
 		//read entire image data
 		image_data = readpng_get_image(2.2, &image_channels, &image_rowbytes);
-		
-		readpng_cleanup(FALSE);
-		fclose(infile);
 		
 		if (image_data) {
 			int row=0, led_idx=0, png_idx=0, i=0;
@@ -1764,13 +1739,27 @@ void readpng(char * args){
 							
 						}
 						led_idx++;
+						if ( led_idx==len){ 
+							if (delay!=0){//reset led index if we are at end of led string and delay
+								led_idx=0;
+								ws2811_render(&ledstring);
+								usleep(delay * 1000);
+							}else{
+								row = image_height; //exit reading
+								i=0;
+								break;
+							}
+						}
 					}
 					png_idx++;
 				}
 			}
+			readpng_cleanup(TRUE);
 		}else{
+			readpng_cleanup(FALSE);
 			fprintf(stderr, "Unable to decode PNG image\n");
 		}
+		fclose(infile);
     }
 }
 #endif

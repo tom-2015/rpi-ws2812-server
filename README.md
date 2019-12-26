@@ -169,7 +169,8 @@ delay
 		<start>,						#start position, start loading at this LED in channel (default 0)
 		<len>,							#load this ammount of pixel/LEDs	(default is channel count or led count)
 		<offset>,						#start at pixel offset in JPG file (default is 0)
-		<OR AND XOR NOT =>				#operator to use, use NOT to reverse image (default is =)
+		<OR AND XOR NOT =>,				#operator to use, use NOT to reverse image (default is =)
+		<delay>							#optional argument the delay between rendering next scan line in the jpg file, if 0 only first line is loaded in to memory and no render performed. default 0
 ```
 
 * `readpng` command can read the pixels from a PNG file and fill them into the LEDs of a channel
@@ -182,7 +183,8 @@ delay
 		<start>,						#start position, start loading at this LED in channel (default 0)
 		<len>,							#load this ammount of pixel/LEDs	(default is channel count or led count)
 		<offset>,						#start at pixel offset in JPG file (default is 0)
-		<OR AND XOR =>					#operator to use, use NOT to reverse image (default is =)
+		<OR AND XOR =>,					#operator to use, use NOT to reverse image (default is =)
+		<delay>							#optional argument the delay between rendering next scan line in the png file, if 0 only first line is loaded in to memory and no render performed. default 0
 ```
 
 * `blink` command makes a group of leds blink between 2 given colors
