@@ -2194,7 +2194,7 @@ int main(int argc, char *argv[]){
 				strcpy(initialize_cmd, argv[arg_idx]);
 			}
 		}else if (strcmp(argv[arg_idx], "-?")==0){
-			printf("WS2812 Server program for Raspberry Pi V2.0");
+			printf("WS2812 Server program for Raspberry Pi V2.2");
 			printf("Command line options:\n");
 			printf("-p <pipename>       	creates a named pipe at location <pipename> where you can write command to.\n");
 			printf("-f <filename>       	read commands from <filename>\n");
