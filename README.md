@@ -212,6 +212,11 @@ delay
 		<start>,						#start position
 		<len>,							#number of leds
 		<color>							#color to use for blinking leds
+		
+Try this as an example for a 300 LED string:
+  fill 1,FFFFFF;
+  brightness 1,0;
+  random_fade_in_out 1,60,50,10,15,800;
 ```
 
 * `color_change` slowly change all leds from one color to another 
@@ -288,6 +293,53 @@ loop 5
 render
 ```
 
+is the same as the C-style code:
+
+```
+for (i=0;i<5;i++){
+	fill 1, FF0000, i, 1
+}
+```
+
+If you have nested loops you can increase the {0} to {1}, {2},...
+
+``` 
+do 
+	do
+		fill 1, FF0000, {1}, 1
+	loop 5
+	render
+loop
+```
+
+Also possible to add a step value for the loop index to fill every "even" led
+
+``` 
+do
+	fill 1, FF0000, {0}, 1
+loop 5,2
+```
+
+is the same as:
+
+```
+for (i=0;i<5;i+=2){
+	fill 1, FF0000, i, 1
+}
+```
+
+To create an alternating pattern of colors use rotate commands in a loop.
+For a 300 LED string this will create alternating RED-YELLOW-GREEN-BLUE-PINK colors:
+```
+do
+    rotate 1,1,1,FF0000
+    rotate 1,1,1,FFFF00
+    rotate 1,1,1,00FF00
+    rotate 1,1,1,0000FF
+	rotate 1,1,1,FF00FF
+loop 60
+```
+
 For `do ... loop` to work from a TCP connection we must start a new thread. 
 This thread will continue to execute the commands when the client disconnects from the TCP/IP connection. 
 The thread will automatically stop executing the next time the client reconnects (ideal for webservers).
@@ -355,3 +407,7 @@ file=/home/pi/test.txt
 pipe=/dev/leds
 init=
 ```
+
+# Complicated animations
+If you need to create complicated animations I suggest to save the color values (each led 1 pixel) in a png or jpg image file and load this file with the readpng command.
+If you have a LED string of 300 leds best is to create an image file which is 300 pixels wide and X pixels high.
