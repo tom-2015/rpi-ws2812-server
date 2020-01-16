@@ -382,6 +382,8 @@ function send_to_leds ($data){
   Creates a file called `/dev/ws281x` where you can write you commands to with any other programming language (do-loop not supported here).
 * `sudo ./ws2812svr -i "setup 1,4,5;init;"`
   Initializes with command setup 1,4,5  and command init
+* `sudo ./ws2812svr -c /etc/ws2812svr.conf`
+  Loads with settings from /etc/ws2812svr.conf
 
 # Running as a service
 To run as service run make install after compilation and adjust the config file in /etc/ws2812svr.conf

@@ -429,7 +429,7 @@ void setup_ledstring(char * args){
 
         int color_size = 4;       
         
-        switch (type){
+        switch (led_types[type]){
             case WS2811_STRIP_RGB:
             case WS2811_STRIP_RBG:
             case WS2811_STRIP_GRB:
@@ -446,21 +446,10 @@ void setup_ledstring(char * args){
         ledstring.channel[channel].strip_type=led_types[type];
         ledstring.channel[channel].brightness=brightness;
         ledstring.channel[channel].color_size=color_size;
-        
+
         int max_size=0,i;
         for (i=0; i<RPI_PWM_CHANNELS;i++){
-            int color_count=4;
-            switch (ledstring.channel[i].strip_type){
-                case WS2811_STRIP_RGB:
-                case WS2811_STRIP_RBG:
-                case WS2811_STRIP_GRB:
-                case WS2811_STRIP_GBR:
-                case WS2811_STRIP_BRG:
-                case WS2811_STRIP_BGR:
-                    color_count=3;
-                    break;
-            }
-            int size = DEFAULT_COMMAND_LINE_SIZE + ledstring.channel[i].count * 2 * color_count;
+            int size = DEFAULT_COMMAND_LINE_SIZE + ledstring.channel[i].count * 2 * ledstring.channel[i].color_size;
             if (size > max_size){
                 max_size = size;
             }
@@ -2194,7 +2183,7 @@ int main(int argc, char *argv[]){
 				strcpy(initialize_cmd, argv[arg_idx]);
 			}
 		}else if (strcmp(argv[arg_idx], "-?")==0){
-			printf("WS2812 Server program for Raspberry Pi V2.2");
+			printf("WS2812 Server program for Raspberry Pi V2.3");
 			printf("Command line options:\n");
 			printf("-p <pipename>       	creates a named pipe at location <pipename> where you can write command to.\n");
 			printf("-f <filename>       	read commands from <filename>\n");
