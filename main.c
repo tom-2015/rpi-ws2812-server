@@ -355,7 +355,7 @@ unsigned long long time_ms(){
 //init <frequency>,<DMA>
 void init_channels(char * args){
     char value[MAX_VAL_LEN];
-    int frequency=WS2811_TARGET_FREQ, dma=5;
+    int frequency=WS2811_TARGET_FREQ, dma=10;
     
     if (ledstring.device!=NULL)	ws2811_fini(&ledstring);
     

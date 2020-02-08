@@ -47,6 +47,16 @@ For example make them all red:
 # Supported commands
 Here is a list of commands you can type or send to the program. All commands have optional comma seperated parameters. The parameters must be in the correct order!
 
+
+* `init` command must be called everytime the program is started after the setup command, this will initialize resource on the Pi according to the setup command
+```
+init  
+    init 
+		<frequency>, 					#Frequency to use for communication to the LEDs, default 800000
+		<dma> 					        #dma channel number to use, default 10 be careful not to use any channels in use by the system as this may crash your SD card/OS
+									    #use cat /proc/device-tree/soc/dma@7e007000/brcm,dma-channel-mask to see which channels (bitmask) might be used by the OS
+```
+
 * `setup` command must be called everytime the program is started:
 ```
 setup  
