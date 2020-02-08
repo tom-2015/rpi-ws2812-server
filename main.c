@@ -2020,6 +2020,7 @@ void tcp_wait_connection (){
 
 //sets up sockets
 void start_tcpip(int port){
+	
      sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
      if (sockfd < 0) {
         fprintf(stderr,"ERROR opening socket\n");
@@ -2035,6 +2036,8 @@ void start_tcpip(int port){
         fprintf(stderr,"ERROR on binding.\n");
         exit(1);
      }
+	 
+	 printf("Listening on %d.\n", port);
      listen(sockfd,5);
      tcp_wait_connection();
 }
@@ -2077,7 +2080,6 @@ void load_config_file(char * filename){
 				int port = atoi(val);
 				if (port==0) port=9999;
 				if (debug) printf("Using TCP port %d\n", port);
-				start_tcpip(port);
 			}
 		}else if (strcmp(cfg, "pipe")==0 && val!=NULL){
 			if (mode==MODE_NAMED_PIPE){
@@ -2100,7 +2102,6 @@ void load_config_file(char * filename){
     }
 
     fclose(file);
-	
 }
 
 //main routine
@@ -2129,6 +2130,7 @@ int main(int argc, char *argv[]){
     mode = MODE_STDIN;
     
 	int arg_idx=1;
+	int port=0;
 	while (argc>arg_idx){
         if (strcmp(argv[arg_idx], "-p")==0){ //use a named pipe, creates a file (by default in /dev/ws281x) which you can write commands to: echo "command..." > /dev/ws281x
             if (argc>arg_idx+1){
@@ -2157,16 +2159,14 @@ int main(int argc, char *argv[]){
             mode = MODE_FILE;
         }else if (strcmp(argv[arg_idx], "-tcp")==0){ //open up tcp ip port and read commands from there
             if (argc>arg_idx+1){
-                int port = atoi(argv[arg_idx+1]);
+                port = atoi(argv[arg_idx+1]);
                 if (port==0) port=9999;
 				arg_idx++;
-                printf("Listening on %d.\n", port);
-                start_tcpip(port);
+				mode = MODE_TCP;
             }else{
                 fprintf(stderr,"You must enter a port after -tcp option\n");
                 exit(1);
             }
-            mode = MODE_TCP;
 		}else if (strcmp(argv[arg_idx], "-c")==0){ //load configuration file
 			if (argc>arg_idx+1){
 				load_config_file(argv[arg_idx+1]);
@@ -2211,6 +2211,8 @@ int main(int argc, char *argv[]){
 		free(initialize_cmd);
 		initialize_cmd=NULL;
 	}
+	
+	if (mode==MODE_TCP) start_tcpip(port);
 	
 	while (exit_program==0) {
         if (mode==MODE_TCP){
