@@ -105,7 +105,7 @@ int       exit_program=0;     //set to 1 to exit the program
 int       mode;               //mode we operate in (TCP, named pipe, file, stdin)
 do_loop   loops[MAX_LOOPS]={0};      //positions of 'do' in file loop, max 32 recursive loops
 int       loop_index=0;       //current loop index
-int       debug=1;            //set to 1 to enable debug output
+int       debug=0;            //set to 1 to enable debug output
 
 //for TCP mode
 int sockfd;        //socket that listens
