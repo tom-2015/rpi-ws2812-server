@@ -105,13 +105,14 @@ int       exit_program=0;     //set to 1 to exit the program
 int       mode;               //mode we operate in (TCP, named pipe, file, stdin)
 do_loop   loops[MAX_LOOPS]={0};      //positions of 'do' in file loop, max 32 recursive loops
 int       loop_index=0;       //current loop index
-int       debug=0;            //set to 1 to enable debug output
+int       debug=1;            //set to 1 to enable debug output
 
 //for TCP mode
 int sockfd;        //socket that listens
 int active_socket; //current active connection socket
 socklen_t clilen;
 struct sockaddr_in serv_addr, cli_addr;
+int port=9999;
 
 //for TCP/IP multithreading
 char *       thread_data=NULL;         //holds command to execute in separate thread (TCP/IP only)
@@ -2077,7 +2078,7 @@ void load_config_file(char * filename){
 			}
 		}else if (strcmp(cfg, "port")==0 && val!=NULL){
 			if (mode==MODE_TCP){
-				int port = atoi(val);
+				port = atoi(val);
 				if (port==0) port=9999;
 				if (debug) printf("Using TCP port %d\n", port);
 			}
@@ -2130,7 +2131,6 @@ int main(int argc, char *argv[]){
     mode = MODE_STDIN;
     
 	int arg_idx=1;
-	int port=0;
 	while (argc>arg_idx){
         if (strcmp(argv[arg_idx], "-p")==0){ //use a named pipe, creates a file (by default in /dev/ws281x) which you can write commands to: echo "command..." > /dev/ws281x
             if (argc>arg_idx+1){
