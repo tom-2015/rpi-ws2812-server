@@ -112,7 +112,7 @@ int sockfd;        //socket that listens
 int active_socket; //current active connection socket
 socklen_t clilen;
 struct sockaddr_in serv_addr, cli_addr;
-int port=9999;
+int port=0;
 
 //for TCP/IP multithreading
 char *       thread_data=NULL;         //holds command to execute in separate thread (TCP/IP only)
