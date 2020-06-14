@@ -1428,24 +1428,34 @@ void load_state(char * args){
 	char filename[MAX_VAL_LEN];
 	char fline[MAX_VAL_LEN];
 
-	if (start<0) start=0;
-	if (start+len> ledstring.channel[channel].count) len = ledstring.channel[channel].count-start;
+	args = read_channel(args, & channel);
+	if (is_valid_channel_number(channel)) len=ledstring.channel[channel].count;
+	args = read_str(args, filename, sizeof(filename));
+	args = read_int(args, & start);
+	args = read_int(args, & len);
 	
-	if (debug) printf("load_state %d,%s,%d,%d\n", channel, filename, start, len);
+	if (is_valid_channel_number(channel)){	
 	
-	if ((infile = fopen(filename, "rb")) == NULL) {
-		fprintf(stderr, "Error: can't open %s\n", filename);
-		return;
+		if (start<0) start=0;
+		if (start+len> ledstring.channel[channel].count) len = ledstring.channel[channel].count-start;
+		
+		if (debug) printf("load_state %d,%s,%d,%d\n", channel, filename, start, len);
+		
+		if ((infile = fopen(filename, "rb")) == NULL) {
+			fprintf(stderr, "Error: can't open %s\n", filename);
+			return;
+		}
+		
+		ws2811_led_t * leds = ledstring.channel[channel].leds;
+		
+		while (i < len && !feof(infile) && fscanf(infile, "%x,%x", & color, & brightness)>0){
+			leds[start+i].color = color;
+			leds[start+i].brightness=brightness;
+			if (debug) printf("load_state set color %d,%d,%d\n", start+i, color, brightness);
+			i++;
+		}
+		fclose(infile);
 	}
-	
-	ws2811_led_t * leds = ledstring.channel[channel].leds;
-	
-	while (i < len && !feof(infile) && fscanf(infile, "x,x",color, brightness)>0){
-		leds[start+i].color = color;
-		leds[start+i].brightness=brightness;
-		i++;
-	}
-	fclose(infile);
 }
 
 void start_loop (char * args){
