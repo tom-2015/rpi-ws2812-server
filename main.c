@@ -1386,6 +1386,67 @@ void fly_out(char * args) {
     }
 }
 
+//save_state <channel>,<filename>,<start>,<len>
+void save_state(char * args){
+	int channel=0,start=0, len=0, color, brightness,i=0;
+	char filename[MAX_VAL_LEN];
+
+	args = read_channel(args, & channel);
+	if (is_valid_channel_number(channel)) len=ledstring.channel[channel].count;
+	args = read_str(args, filename, sizeof(filename));
+	args = read_int(args, & start);
+	args = read_int(args, & len);
+	
+	if (is_valid_channel_number(channel)){		
+		FILE * outfile;
+
+		if (start<0) start=0;
+        if (start+len> ledstring.channel[channel].count) len = ledstring.channel[channel].count-start;
+		
+		if (debug) printf("save_state %d,%s,%d,%d\n", channel, filename, start, len);
+		
+		if ((outfile = fopen(filename, "wb")) == NULL) {
+			fprintf(stderr, "Error: can't open %s\n", filename);
+			return;
+		}
+		ws2811_led_t * leds = ledstring.channel[channel].leds;
+		
+		for (i=0;i<len;i++){
+			color = leds[start+i].color;
+			brightness = leds[start+i].brightness;
+			
+			fprintf(outfile,"%08X,%02X\n", color, brightness);
+		}
+		fclose(outfile);
+	}
+}
+
+//load_state <channel>,<filename>,<start>,<len>
+void load_state(char * args){
+	FILE * infile;		/* source file */
+	int channel=0,start=0, len=0, color, brightness, i=0;
+	char filename[MAX_VAL_LEN];
+	char fline[MAX_VAL_LEN];
+
+	if (start<0) start=0;
+	if (start+len> ledstring.channel[channel].count) len = ledstring.channel[channel].count-start;
+	
+	if (debug) printf("load_state %d,%s,%d,%d\n", channel, filename, start, len);
+	
+	if ((infile = fopen(filename, "rb")) == NULL) {
+		fprintf(stderr, "Error: can't open %s\n", filename);
+		return;
+	}
+	
+	ws2811_led_t * leds = ledstring.channel[channel].leds;
+	
+	while (i < len && !feof(infile) && fscanf(infile, "x,x",color, brightness)>0){
+		leds[start+i].color = color;
+		leds[start+i].brightness=brightness;
+		i++;
+	}
+	fclose(infile);
+}
 
 void start_loop (char * args){
     if (mode==MODE_FILE){
@@ -1761,7 +1822,8 @@ void init_thread(char * data){
     if (thread_data==NULL){
         thread_data = (char *) malloc(DEFAULT_BUFFER_SIZE);
         thread_data_size = DEFAULT_BUFFER_SIZE;
-    }                
+    }
+	loop_index=0;
     start_thread=0;
     thread_read_index=0;
     thread_write_index=0;
@@ -1956,6 +2018,10 @@ void execute_command(char * command_line){
             printf("do ... loop (TCP / File mode only)\n");
 			printf("Inside a finite loop {x} will be replaced by the current loop index number. x stands for the loop number in case of multiple nested loops (default use 0).");
             printf("exit\n");
+        }else if (strcmp(command, "save_state")==0){
+			save_state(arg);
+		}else if (strcmp(command, "load_state")==0){
+			load_state(arg);
         }else if (strcmp(command, "debug")==0){
             if (debug) debug=0;
             else debug=1;
