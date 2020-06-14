@@ -2018,6 +2018,8 @@ void execute_command(char * command_line){
 			printf("color_change <channel>,<startcolor>,<stopcolor>,<duration>,<start>,<len>\n");
 			printf("fly_in <channel>,<direction>,<delay>,<brightness>,<start>,<len>,<start_brightness>,<color>\n");
 			printf("fly_out <channel>,<direction>,<delay>,<brightness>,<start>,<len>,<end_brightness>,<color>\n");
+			printf("save_state <channel>,<file_name>,<start>,<len>\n");
+			printf("load_state <channel>,<file_name>,<start>,<len>\n");
 			#ifdef USE_JPEG
 			printf("readjpg <channel>,<file>,<LED start>,<len>,<JPEG Pixel offset>,<OR,AND,XOR,NOT,=>\n");
 			#endif
@@ -2259,7 +2261,7 @@ int main(int argc, char *argv[]){
 				strcpy(initialize_cmd, argv[arg_idx]);
 			}
 		}else if (strcmp(argv[arg_idx], "-?")==0){
-			printf("WS2812 Server program for Raspberry Pi V2.4");
+			printf("WS2812 Server program for Raspberry Pi V2.5\n");
 			printf("Command line options:\n");
 			printf("-p <pipename>       	creates a named pipe at location <pipename> where you can write command to.\n");
 			printf("-f <filename>       	read commands from <filename>\n");
