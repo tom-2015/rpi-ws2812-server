@@ -2074,7 +2074,8 @@ void tcp_wait_connection (){
     if (start_thread){
         if (debug) printf("Running thread.\n");
         thread_running=1; //thread will run untill thread_running becomes 0 (this is after a new client has connected)
-        pthread_create(& thread, NULL, (void* (*)(void*)) & thread_func, NULL);
+        int s = pthread_create(& thread, NULL, (void* (*)(void*)) & thread_func, NULL);
+		if (s!=0) perror("Error creating new thread: %d", s);
     }    
     
     printf("Waiting for client to connect.\n");
@@ -2261,7 +2262,7 @@ int main(int argc, char *argv[]){
 				strcpy(initialize_cmd, argv[arg_idx]);
 			}
 		}else if (strcmp(argv[arg_idx], "-?")==0){
-			printf("WS2812 Server program for Raspberry Pi V2.5\n");
+			printf("WS2812 Server program for Raspberry Pi V2.6\n");
 			printf("Command line options:\n");
 			printf("-p <pipename>       	creates a named pipe at location <pipename> where you can write command to.\n");
 			printf("-f <filename>       	read commands from <filename>\n");
