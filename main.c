@@ -2075,7 +2075,7 @@ void tcp_wait_connection (){
         if (debug) printf("Running thread.\n");
         thread_running=1; //thread will run untill thread_running becomes 0 (this is after a new client has connected)
         int s = pthread_create(& thread, NULL, (void* (*)(void*)) & thread_func, NULL);
-		if (s!=0) perror("Error creating new thread: %d", s);
+		if (s!=0) fprintf(stderr,"Error creating new thread: %d", s);
     }    
     
     printf("Waiting for client to connect.\n");
