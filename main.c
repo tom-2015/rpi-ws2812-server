@@ -2088,6 +2088,7 @@ void tcp_wait_connection (){
     if (thread_running){//if there is a thread active we exit it 
         thread_running=0;
         int res = pthread_join(thread,NULL); //wait for thread to finish and exit
+		if (res!=0) fprintf(stderr,"Error join thread: %d", res);
 	}
     
     write_to_thread_buffer=0;
