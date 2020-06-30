@@ -2087,8 +2087,8 @@ void tcp_wait_connection (){
     
     if (thread_running){//if there is a thread active we exit it 
         thread_running=0;
-        pthread_join(thread,NULL); //wait for thread to finish and exit
-    }
+        int res = pthread_join(thread,NULL); //wait for thread to finish and exit
+	}
     
     write_to_thread_buffer=0;
     thread_write_index=0;
@@ -2262,7 +2262,7 @@ int main(int argc, char *argv[]){
 				strcpy(initialize_cmd, argv[arg_idx]);
 			}
 		}else if (strcmp(argv[arg_idx], "-?")==0){
-			printf("WS2812 Server program for Raspberry Pi V2.6\n");
+			printf("WS2812 Server program for Raspberry Pi V2.7\n");
 			printf("Command line options:\n");
 			printf("-p <pipename>       	creates a named pipe at location <pipename> where you can write command to.\n");
 			printf("-f <filename>       	read commands from <filename>\n");
