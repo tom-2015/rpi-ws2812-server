@@ -14,6 +14,7 @@
 #include <signal.h>
 #include <pthread.h>
 #include <ctype.h>
+#include <errno.h>
 #include "ws2811.h"
 
 #define DEFAULT_DEVICE_FILE "/dev/ws281x"
@@ -2071,32 +2072,43 @@ void tcp_wait_connection (){
     int sock_opt = 1;
     socklen_t optlen = sizeof (sock_opt);
     
+	if (active_socket!=-1) close(active_socket);
+	
     if (start_thread){
         if (debug) printf("Running thread.\n");
         thread_running=1; //thread will run untill thread_running becomes 0 (this is after a new client has connected)
         int s = pthread_create(& thread, NULL, (void* (*)(void*)) & thread_func, NULL);
-		if (s!=0) fprintf(stderr,"Error creating new thread: %d", s);
+		if (s!=0){
+			fprintf(stderr,"Error creating new thread: %d", s);
+			perror(NULL);
+		}
     }    
     
     printf("Waiting for client to connect.\n");
     
     clilen = sizeof(cli_addr);
     active_socket = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
-    
-    if (setsockopt(active_socket, SOL_SOCKET, SO_KEEPALIVE, &sock_opt, optlen)) printf("Error set SO_KEEPALIVE\n");
-    
-    if (thread_running){//if there is a thread active we exit it 
-        thread_running=0;
-        int res = pthread_join(thread,NULL); //wait for thread to finish and exit
-		if (res!=0) fprintf(stderr,"Error join thread: %d", res);
+    if (active_socket!=-1){
+		if (setsockopt(active_socket, SOL_SOCKET, SO_KEEPALIVE, &sock_opt, optlen)) printf("Error set SO_KEEPALIVE\n");
+		
+		if (thread_running){//if there is a thread active we exit it 
+			thread_running=0;
+			int res = pthread_join(thread,NULL); //wait for thread to finish and exit
+			if (res!=0){
+				fprintf(stderr,"Error join thread: %d", res);
+				perror(NULL);
+			}
+		}
+		
+		write_to_thread_buffer=0;
+		thread_write_index=0;
+		thread_read_index=0;
+		start_thread=0;
+		 
+		printf("Client connected.\n");
+	}else{
+		perror("Socket accept error");
 	}
-    
-    write_to_thread_buffer=0;
-    thread_write_index=0;
-    thread_read_index=0;
-    start_thread=0;
-     
-    printf("Client connected.\n");
 }
 
 //sets up sockets
