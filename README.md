@@ -283,6 +283,28 @@ Try this as an example for a 300 LED string:
 	NOTICE: first fill entire strip with a color before calling this function (use fill <channel>,<color>)
 ```
 
+* `save_state` saves current color and brightness values of a channel to a CSV file, format is:
+			   8 character hex number for color + , + 2 character hex for brightness + new line: WWBBGGRR,FF
+               the CSV file can be loaded with load_state command.
+```
+	save_state
+		<channel>,						#channel number to use
+		<filename>,					    #file where to save the data
+		<start>,						#start saving at led index (default is led 0)
+		<len> 							#save this number of leds (default is the entire led string)
+```
+
+
+* `load_state` loads saved color and brightness values from CSV file. see save_state for format.
+```
+	load_state
+		<channel>,						#channel number to load to
+		<filename>,						#the file where to load from
+		<start>,						#start loading at this LED index
+		<len>							#load this number of LEDs from the file
+```
+
+
 # Special keywords
 You can add `do ... loop` to repeat commands when using a file or TCP connection.
 
