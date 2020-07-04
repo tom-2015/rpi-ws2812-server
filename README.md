@@ -304,6 +304,16 @@ Try this as an example for a 300 LED string:
 		<len>							#load this number of LEDs from the file
 ```
 
+* `set_thread_exit_type` only if using TCP mode and threads. This will set if the thread should be aborted when next client connects and immediately start execute next commands or
+					     wait until the thread completes execution of the script and start next script received from client.
+						 The client will receive READY + (newline CR + LF) when the previous script exited and it's ready to take new commands.
+```
+	set_thread_exit_type
+		<thread_id>,					#The thread number, always 0
+		<type> 							#exit type: 0 aborts current running thread and immediate execute next commands
+												    1 wait until previous transmitted commands complete, then start next script
+```
+
 
 # Special keywords
 You can add `do ... loop` to repeat commands when using a file or TCP connection.
