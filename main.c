@@ -115,14 +115,22 @@ socklen_t clilen;
 struct sockaddr_in serv_addr, cli_addr;
 int port=0;
 
+#define JOIN_THREAD_CANCEL 0
+#define JOIN_THREAD_WAIT 1
+
+
 //for TCP/IP multithreading
+volatile int end_current_command=0;	   //1 if current command must be exited because thread must exit
 char *       thread_data=NULL;         //holds command to execute in separate thread (TCP/IP only)
 int          thread_read_index=0;      //read position 
 int          thread_write_index=0;     //write position
 int          thread_data_size=0;       //buffer size
-volatile int thread_running=0;         //becomes 1 there is a thread running
+volatile int thread_running=0;         //becomes 1 there is a thread running, set to 0 to terminate thread
 int          write_to_thread_buffer=0; //becomes 1 if we need to write to thread buffer
 int          start_thread=0;           //becomes 1 after the thread_stop command and tells the program to start the thread on disconnect of the TCP/IP connection
+int 		 thread_active=0;			   //1 if a thread is active and we need to join it
+int 		 join_thread_type=JOIN_THREAD_CANCEL;  //determines how next connection should end previous thread, if JOIN_THREAD_NONE no thread is running
+
 //pthread_mutex_t mutex_fifo_queue; 
 pthread_t thread; //a thread that will repeat code after client closed connection
 
@@ -746,6 +754,7 @@ void fade (char * args){
             }
             ws2811_render(&ledstring);
             usleep(delay * 1000);
+			if (end_current_command) break; //signal to exit this command
         } 
     }else{
         fprintf(stderr,ERROR_INVALID_CHANNEL);
@@ -797,6 +806,7 @@ void blink (char * args){
             }
             ws2811_render(&ledstring);
             usleep(delay * 1000);
+			if (end_current_command) break; //signal to exit this command
         } 
     }else{
         fprintf(stderr,ERROR_INVALID_CHANNEL);
@@ -1047,7 +1057,7 @@ void random_fade_in_out(char * args){
 		
 		unsigned int start_time = time(0);
 		
-		while (((time(0) - start_time) < duration) || duration==0){
+		while ((((time(0) - start_time) < duration) || duration==0) && end_current_command==0){
 			for (i=0;i<count; i++){
 				if (led_status[i].delay<=0){
 					if (led_status[i].led_index!=-1){
@@ -1134,7 +1144,7 @@ void chaser(char * args){
 		int loop_count=0;
 		
 		unsigned int start_time = time(0);
-		while ((((time(0) - start_time) < duration) || duration==0) && (loops==0 || loops < loop_count)){
+		while (((((time(0) - start_time) < duration) || duration==0) && (loops==0 || loops < loop_count)) && end_current_command==0){
 			ws2811_led_t tmp_led;
 			
 			for (n=0;n<count;n++){
@@ -1211,7 +1221,8 @@ void color_change(char * args) {
 			
 			ws2811_render(&ledstring);
 			usleep(delay * 1000);	
-			curr_time = time_ms() - start_time;			
+			curr_time = time_ms() - start_time;	
+			if (end_current_command) break; //signal to exit this command			
 		}
 		
 		
@@ -1290,6 +1301,7 @@ void fly_in(char * args) {
 					leds[start+len-j-1].brightness = start_brightness;
 					leds[start+len-j-1].color = tmp_color;
 				}
+				if (end_current_command) break; //signal to exit this command
 			}
 			if (direction){
 				leds[start+len-i-1].brightness = brightness;
@@ -1300,6 +1312,7 @@ void fly_in(char * args) {
 			}
 			ws2811_render(&ledstring);
 			usleep(delay * 1000);		
+			if (end_current_command) break; //signal to exit this command
 		}
 
     }else{
@@ -1376,10 +1389,13 @@ void fly_out(char * args) {
 					leds[start+len-i-1+j].brightness = end_brightness;
 					leds[start+len-i-1+j].color = tmp_color;
 				}
+				if (end_current_command) break; //signal to exit this command
 			}
-
+			
+			if (end_current_command) break; //signal to exit this command
 			ws2811_render(&ledstring);
-			usleep(delay * 1000);		
+			usleep(delay * 1000);
+						
 		}
 
     }else{
@@ -1593,7 +1609,7 @@ void readjpg(char * args){
 		led_idx=start; //start at this led index
 		
 		int eofstring=0;
-		while (eofstring==0 && cinfo.output_scanline < cinfo.output_height) {
+		while (eofstring==0 && cinfo.output_scanline < cinfo.output_height && end_current_command==0) {
 			jpeg_read_scanlines(&cinfo, buffer, 1);
 			for(i=0;i<cinfo.image_width;i++){
 				if (jpg_idx>=offset){ //check jpeg offset
@@ -1638,6 +1654,7 @@ void readjpg(char * args){
 						}
 					}
 				}
+				if (end_current_command) break; //signal to exit this command
 				jpg_idx++;
 			}
 		}
@@ -1816,7 +1833,9 @@ void readpng(char * args){
 						}
 					}
 					png_idx++;
+					if (end_current_command) break; //signal to exit this command
 				}
+				if (end_current_command) break;
 			}
 			readpng_cleanup(TRUE);
 		}else{
@@ -1828,13 +1847,36 @@ void readpng(char * args){
 }
 #endif
 
+//sets join type for next socket connect if thread is active
+// set_thread_exit_type_type <thread_index>,<join_type>
+//<thread_index> = 0
+//<join_type> 0 -> Cancel, 1 -> wait
+void set_thread_exit_type(char * args){
+	
+	int thread_index = 0;
+	int join_type = JOIN_THREAD_CANCEL;
+	
+	args = read_int(args, & thread_index);
+	args = read_int(args, & join_type);
+	
+	if (join_type==JOIN_THREAD_CANCEL || join_type==JOIN_THREAD_WAIT){
+		
+		join_thread_type=join_type;
+	}else{
+		fprintf(stderr, "Invalid join type %d\n", join_type);
+	}
+	
+}
+
 //initializes the memory for a TCP/IP multithread buffer
 void init_thread(char * data){
     if (thread_data==NULL){
         thread_data = (char *) malloc(DEFAULT_BUFFER_SIZE);
         thread_data_size = DEFAULT_BUFFER_SIZE;
     }
+	end_current_command=0;
 	loop_index=0;
+	thread_active=0;
     start_thread=0;
     thread_read_index=0;
     thread_write_index=0;
@@ -1864,7 +1906,6 @@ void thread_func (void * param){
     if (debug) printf("Enter thread %d,%d,%d.\n", thread_running,thread_read_index,thread_write_index);
     while (thread_running){
         char c = thread_data[thread_read_index];
-        //if(debug) printf("Process char %c %d\n", c, thread_read_index);
         process_character(c);
         thread_read_index++;
         if (thread_read_index>=thread_write_index) break; //exit loop if we are at the end of the file
@@ -1960,7 +2001,7 @@ void execute_command(char * command_line){
         }else if (strcmp(command, "loop")==0){
             end_loop(arg);
         }else if (strcmp(command, "thread_start")==0){ //start a new thread that processes code
-            if (thread_running==0 && mode==MODE_TCP) init_thread(arg);
+            if (thread_active==0 && mode==MODE_TCP) init_thread(arg);
         }else if (strcmp(command, "init")==0){ //first init ammount of channels wanted
             init_channels(arg);
         }else if (strcmp(command, "setup")==0){ //setup the channels
@@ -2035,6 +2076,8 @@ void execute_command(char * command_line){
 			save_state(arg);
 		}else if (strcmp(command, "load_state")==0){
 			load_state(arg);
+		}else if (strcmp(command, "set_thread_exit_type")==0){
+			set_thread_exit_type(arg);
         }else if (strcmp(command, "debug")==0){
             if (debug) debug=0;
             else debug=1;
@@ -2044,7 +2087,7 @@ void execute_command(char * command_line){
         }else{
             printf("Unknown cmd: %s\n", command_line);
         }
-		//free(arg);
+		if (arg!=NULL) free(arg);
     }
 }
 
@@ -2076,6 +2119,7 @@ void tcp_wait_connection (){
 	
     if (start_thread){
         if (debug) printf("Running thread.\n");
+		thread_active=1;
         thread_running=1; //thread will run untill thread_running becomes 0 (this is after a new client has connected)
         int s = pthread_create(& thread, NULL, (void* (*)(void*)) & thread_func, NULL);
 		if (s!=0){
@@ -2091,14 +2135,27 @@ void tcp_wait_connection (){
     if (active_socket!=-1){
 		if (setsockopt(active_socket, SOL_SOCKET, SO_KEEPALIVE, &sock_opt, optlen)) printf("Error set SO_KEEPALIVE\n");
 		
-		if (thread_running){//if there is a thread active we exit it 
-			thread_running=0;
-			int res = pthread_join(thread,NULL); //wait for thread to finish and exit
-			if (res!=0){
-				fprintf(stderr,"Error join thread: %d", res);
-				perror(NULL);
+		//if there is a thread active we exit it 
+		if (thread_active){
+			switch (join_thread_type){
+				case JOIN_THREAD_WAIT:
+		
+					break;
+				default: //default is cancel
+					end_current_command=1; //end current command
+					thread_running=0; //exit the thread
+					break;
 			}
+			int res = pthread_join(thread,NULL); //wait for thread to finish, clean up and exit
+			if (res!=0){
+				fprintf(stderr,"Error join thread: %d ", res);
+				perror(NULL);
+			}		
+			end_current_command=0;
+			thread_active=0;
 		}
+		
+		write(active_socket, "READY\r\n", 7);
 		
 		write_to_thread_buffer=0;
 		thread_write_index=0;
@@ -2275,7 +2332,7 @@ int main(int argc, char *argv[]){
 				strcpy(initialize_cmd, argv[arg_idx]);
 			}
 		}else if (strcmp(argv[arg_idx], "-?")==0){
-			printf("WS2812 Server program for Raspberry Pi V2.7\n");
+			printf("WS2812 Server program for Raspberry Pi V2.8\n");
 			printf("Command line options:\n");
 			printf("-p <pipename>       	creates a named pipe at location <pipename> where you can write command to.\n");
 			printf("-f <filename>       	read commands from <filename>\n");
