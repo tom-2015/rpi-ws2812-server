@@ -247,9 +247,10 @@ Try this as an example for a 300 LED string:
 		<duration>,						#max number of seconds the event may take in seconds (default 10) use 0 to make chaser run forever
 		<color>,						#color 000000-FFFFFF to use for chasing leds
 		<direction>,					#direction 1 or 0 to indicate forward/backwards direction of movement
+		<count>,						#number of LEDs in the chaser that will light up
 		<delay>,						#delay between moving one pixel (milliseconds) default is 10ms
 		<start>,						#start effect at this led position
-		<len>,							#number of leds to change starting at start
+		<len>,							#number of leds the chaser will move before starting back start led
 		<brightness>,					#brightness value of chasing leds (0-255) default is 255
 		<loops>							#max number of loops, use 0 to loop forever / duration time
 ```
