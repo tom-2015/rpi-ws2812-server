@@ -1133,6 +1133,7 @@ void chaser(char * args){
 	if (is_valid_channel_number(channel)){
 		if (start>=ledstring.channel[channel].count) start=0;
 		if ((start+len)>ledstring.channel[channel].count) len=ledstring.channel[channel].count-start;
+		if (len==0) len = 1;
 		if (count>len) count = len;
 		
 		if (debug) printf("chaser %d %d %d %d %d %d %d %d %d %d\n", channel, duration, color, count, direction, delay, start, len, brightness, loops);
@@ -1546,7 +1547,7 @@ void readjpg(char * args){
 	char value[MAX_VAL_LEN];
 	int channel=0;
 	char filename[MAX_VAL_LEN];
-	unsigned int start=0, len=0, offset=0;
+	unsigned int start=0, len=1, offset=0;
 	int op=0,delay=0;
     
 	args = read_channel(args, & channel);
@@ -1561,7 +1562,7 @@ void readjpg(char * args){
 	else if (strcmp(value, "XOR")==0) op=3;
 	else if (strcmp(value, "NOT")==0) op=4;
 	args = read_int(args, &delay);
-	
+	if (len<=0) len =1;
     
     if (is_valid_channel_number(channel)){
 		FILE * infile;		/* source file */
@@ -1621,7 +1622,7 @@ void readjpg(char * args){
 						g = r;
 						b = r;
 					}
-					if (led_idx<len){
+					if (led_idx<start+len){
 						if (debug) printf("led %d= r %d,g %d,b %d, jpg idx=%d\n", led_idx, r, g, b,jpg_idx);
 						int fill_color = color(r,g,b);
 						switch (op){
@@ -1643,9 +1644,9 @@ void readjpg(char * args){
 						}
 					}
 					led_idx++;
-					if ( led_idx==len){ 
+					if ( led_idx== start + len){ 
 						if (delay!=0){//reset led index if we are at end of led string and delay
-							led_idx=0;
+							led_idx=start;
 							ws2811_render(&ledstring);
 							usleep(delay * 1000);
 						}else{
@@ -1792,7 +1793,7 @@ void readpng(char * args){
 					}					
 					if (png_idx>=offset){
 						if (debug) printf("led %d= r %d,g %d,b %d,a %d, PNG channels=%d, PNG idx=%d\n", led_idx, r, g, b, a,image_channels,png_idx);
-						if (led_idx<len){
+						if (led_idx < start + len){
 							int fill_color;
 							if (backcolortype==2 && ledstring.channel[channel].color_size>3){
 								fill_color=color_rgbw(r,g,b,a);
@@ -1820,9 +1821,9 @@ void readpng(char * args){
 							
 						}
 						led_idx++;
-						if ( led_idx==len){ 
+						if ( led_idx==start + len){ 
 							if (delay!=0){//reset led index if we are at end of led string and delay
-								led_idx=0;
+								led_idx=start;
 								ws2811_render(&ledstring);
 								usleep(delay * 1000);
 							}else{
@@ -2332,7 +2333,7 @@ int main(int argc, char *argv[]){
 				strcpy(initialize_cmd, argv[arg_idx]);
 			}
 		}else if (strcmp(argv[arg_idx], "-?")==0){
-			printf("WS2812 Server program for Raspberry Pi V2.8\n");
+			printf("WS2812 Server program for Raspberry Pi V2.9\n");
 			printf("Command line options:\n");
 			printf("-p <pipename>       	creates a named pipe at location <pipename> where you can write command to.\n");
 			printf("-f <filename>       	read commands from <filename>\n");
