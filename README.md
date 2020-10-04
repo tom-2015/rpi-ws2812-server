@@ -14,7 +14,7 @@ Newer versions require libjpeg-dev and libpng-dev for reading PNG and JPEG image
 If you don't want to use JPEG or PNG you can disable this using:
 * `make NO_JPEG=1 NO_PNG=1`
 
-On newer Raspbian (Jessie) operating system the audio output is activated by default, you need to disable this:
+On newer Raspbian (>=Jessie) operating system the audio output is activated by default, you need to disable this:
 You can do this by blacklisting the sound module:
 `sudo nano /etc/modprobe.d/snd-blacklist.conf`
 ```
@@ -181,6 +181,7 @@ delay
 		<offset>,						#start at pixel offset in JPG file (default is 0)
 		<OR AND XOR NOT =>,				#operator to use, use NOT to reverse image (default is =)
 		<delay>							#optional argument the delay between rendering next scan line in the jpg file, if 0 only first line is loaded in to memory and no render performed. default 0
+		<flip_rows>					    #optional argument to indicate to horizontally flip rows with odd index
 ```
 
 * `readpng` command can read the pixels from a PNG file and fill them into the LEDs of a channel
@@ -195,6 +196,7 @@ delay
 		<offset>,						#start at pixel offset in JPG file (default is 0)
 		<OR AND XOR =>,					#operator to use, use NOT to reverse image (default is =)
 		<delay>							#optional argument the delay between rendering next scan line in the png file, if 0 only first line is loaded in to memory and no render performed. default 0
+		<flip_rows>					    #optional argument to indicate to horizontally flip rows with odd index
 ```
 
 * `blink` command makes a group of leds blink between 2 given colors
@@ -284,6 +286,20 @@ Try this as an example for a 300 LED string:
 	NOTICE: first fill entire strip with a color before calling this function (use fill <channel>,<color>)
 ```
 
+* `progress` generates a progress bar effect or sets the leds brightness to a given progress value
+```
+	progress
+		<channel>,						#channel number to use
+		<direction>,					#direction of progress bar (default 1) start led = 0%, start + len = 100%
+		<delay>,						#delay between increments of progress (default 1s), set 0 to not automatically increment and render progress bar but use the value argument
+		<start>,						#start effect at this led position, default 0
+		<len>,							#number of leds to change starting at start, default length of strip
+		<brightness_on>,				#brightness of led that is on default 255
+		<brightness_off>,				#brightness of led that is off default 0
+		<value>  						#set progress to this value (delay must be 0, manual render needed)
+	NOTICE: first fill entire strip with a color before calling this function (use fill <channel>,<color> or rainbow,...)
+```
+
 * `save_state` saves current color and brightness values of a channel to a CSV file, format is:
 			   8 character hex number for color + , + 2 character hex for brightness + new line: WWBBGGRR,FF
                the CSV file can be loaded with load_state command.
@@ -305,19 +321,59 @@ Try this as an example for a 300 LED string:
 		<len>							#load this number of LEDs from the file
 ```
 
-* `set_thread_exit_type` only if using TCP mode and threads. This will set if the thread should be aborted when next client connects and immediately start execute next commands or
-					     wait until the thread completes execution of the script and start next script received from client.
-						 The client will receive READY + (newline CR + LF) when the previous script exited and it's ready to take new commands.
+* It is possible to start threads, a thread will execute commands between thread_start and thread_stop in the background.
+  Multiple threads can run at the same time by changing the <index> parameter.
+  <join_type> will determine the behavior next time you call thread_start with the <index> value of a thread that is still running
+  if join_type is 0 the thread will be aborted immediately, value of 1 it will wait until the thread completed all commands and then READY + CRLF is returned.
+```
+thread_start <index>,<join_type>
+   do  
+      rotate 1,1,2  
+     render  
+     delay 200  
+  loop  
+thread_stop
+```
+
+
+* `set_thread_exit_type` This will set if the thread should be aborted when the kill_thread or ini_thread command is executed for the <thread_id> parameter
+						 READY + newline (CR + LF) will be returned when the thread has exited.
 ```
 	set_thread_exit_type
-		<thread_id>,					#The thread number, always 0
+		<thread_id>,					#The thread number  (1-63)
 		<type> 							#exit type: 0 aborts current running thread and immediate execute next commands
-												    1 wait until previous transmitted commands complete, then start next script
+												    1 wait until all commands completed, then exit
+```
+
+* `wait_thread` wait for a given thread to finish all commands (the exit type is ignored here)
+```
+	wait_thread
+		<thread_id> 					#The thread number (1-63)
+```
+
+* `kill_thread` terminate the given thread_id
+```
+	kill_thread
+		<thread_id> 					#The thread number (1-63)
+		<type> 							#exit type: 0 aborts current running thread
+												    1 wait until all commands completed
+```
+
+* `wait_signal` waits for a signal from another thread before executing the next command
+```
+	wait_signal
+```
+
+
+* `signal_thread` send a signal to the given thread_id to continue executing commands
+```
+	signal_thread
+		<thread_id> 					#The thread number (1-63)
 ```
 
 
 # Special keywords
-You can add `do ... loop` to repeat commands when using a file or TCP connection.
+You can add `do ... loop` to repeat commands.
 
 For example the commands between `do` and `loop` will be executed 10 times:
 ```
@@ -383,28 +439,12 @@ do
 loop 60
 ```
 
-For `do ... loop` to work from a TCP connection we must start a new thread. 
-This thread will continue to execute the commands when the client disconnects from the TCP/IP connection. 
-The thread will automatically stop executing the next time the client reconnects (ideal for webservers).
-
-For example:
-```
-thread_start   
-   do  
-      rotate 1,1,2  
-     render  
-     delay 200  
-  loop  
-thread_stop  
-<client must close connection now>   
-```
-
 # PHP example
 First start the server program:
 
 * `sudo ./ws2812svr -tcp`
 
-Then run the php code from the webserver:
+Then run the php code from the webserver (check out the internet how to setup a webserver PHP+APACHE or PHP+NGINX on your Pi):
 
 ```PHP
 //create a rainbow for 10 leds on channel 1:  
