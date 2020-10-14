@@ -1185,8 +1185,10 @@ void tcp_wait_connection (){
     clilen = sizeof(cli_addr);
     active_socket = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
 	if (active_socket!=-1){
-		if (setsockopt(active_socket, SOL_SOCKET, SO_KEEPALIVE, &sock_opt, optlen)) printf("Error set SO_KEEPALIVE\n");
-		
+		if (setsockopt(active_socket, SOL_SOCKET, SO_KEEPALIVE, &sock_opt, optlen)){
+			perror("Error set SO_KEEPALIVE\n");
+		}
+
 		printf("Client connected.\n");
 	}else{
 		perror("Socket accept error");
@@ -1385,7 +1387,7 @@ int main(int argc, char *argv[]){
 				strcpy(initialize_cmd, argv[arg_idx]);
 			}
 		}else if (strcmp(argv[arg_idx], "-?")==0){
-			printf("WS2812 Server program for Raspberry Pi V4.0\n");
+			printf("WS2812 Server program for Raspberry Pi V4.1\n");
 			printf("Command line options:\n");
 			printf("-p <pipename>       	creates a named pipe at location <pipename> where you can write command to.\n");
 			printf("-f <filename>       	read commands from <filename>\n");
