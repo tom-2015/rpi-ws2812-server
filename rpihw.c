@@ -53,6 +53,16 @@
 
 static const rpi_hw_t rpi_hw_info[] = {
     //
+    // Raspberry Pi 400
+    //
+    {
+        .hwver = 0xc03130,
+        .type = RPI_HWVER_TYPE_PI4,
+        .periph_base = PERIPH_BASE_RPI4,
+        .videocore_base = VIDEOCORE_BASE_RPI2,
+        .desc = "Pi 400 - 4GB v1.0"
+    },
+    //
     // Raspberry Pi 4
     //
     {
@@ -60,14 +70,14 @@ static const rpi_hw_t rpi_hw_info[] = {
         .type = RPI_HWVER_TYPE_PI4,
         .periph_base = PERIPH_BASE_RPI4,
         .videocore_base = VIDEOCORE_BASE_RPI2,
-        .desc = "Pi 4 Model B - 1GB"
+        .desc = "Pi 4 Model B - 1GB v1.1"
     },
     {
         .hwver = 0xB03111,
         .type = RPI_HWVER_TYPE_PI4,
         .periph_base = PERIPH_BASE_RPI4,
         .videocore_base = VIDEOCORE_BASE_RPI2,
-        .desc = "Pi 4 Model B - 2GB"
+        .desc = "Pi 4 Model B - 2GB v.1.1"
     },
     {
         .hwver = 0xC03111,
@@ -77,24 +87,52 @@ static const rpi_hw_t rpi_hw_info[] = {
         .desc = "Pi 4 Model B - 4GB v1.1"
     },
     {
+        .hwver = 0xA03112,
+        .type = RPI_HWVER_TYPE_PI4,
+        .periph_base = PERIPH_BASE_RPI4,
+        .videocore_base = VIDEOCORE_BASE_RPI2,
+        .desc = "Pi 4 Model B - 1GB v1.2"
+    },
+    {
+        .hwver = 0xB03112,
+        .type = RPI_HWVER_TYPE_PI4,
+        .periph_base = PERIPH_BASE_RPI4,
+        .videocore_base = VIDEOCORE_BASE_RPI2,
+        .desc = "Pi 4 Model B - 2GB v.1.2"
+    },
+    {
         .hwver = 0xC03112,
         .type = RPI_HWVER_TYPE_PI4,
         .periph_base = PERIPH_BASE_RPI4,
         .videocore_base = VIDEOCORE_BASE_RPI2,
         .desc = "Pi 4 Model B - 4GB v1.2"
     },
+    {
+        .hwver = 0xD03114,
+        .type = RPI_HWVER_TYPE_PI4,
+        .periph_base = PERIPH_BASE_RPI4,
+        .videocore_base = VIDEOCORE_BASE_RPI2,
+        .desc = "Pi 4 Model B - 8GB v1.2"
+    },
+    {
+        .hwver = 0xb03114,
+        .type = RPI_HWVER_TYPE_PI4,
+        .periph_base = PERIPH_BASE_RPI4,
+        .videocore_base = VIDEOCORE_BASE_RPI2,
+        .desc = "Pi 4 Model B - 2GB v1.4"
+    },
     //
     // Model B Rev 1.0
     //
     {
-        .hwver  = 0x02,
+        .hwver = 0x02,
         .type = RPI_HWVER_TYPE_PI1,
         .periph_base = PERIPH_BASE_RPI,
         .videocore_base = VIDEOCORE_BASE_RPI,
         .desc = "Model B",
     },
     {
-        .hwver  = 0x03,
+        .hwver = 0x03,
         .type = RPI_HWVER_TYPE_PI1,
         .periph_base = PERIPH_BASE_RPI,
         .videocore_base = VIDEOCORE_BASE_RPI,
@@ -105,21 +143,21 @@ static const rpi_hw_t rpi_hw_info[] = {
     // Model B Rev 2.0
     //
     {
-        .hwver  = 0x04,
+        .hwver = 0x04,
         .type = RPI_HWVER_TYPE_PI1,
         .periph_base = PERIPH_BASE_RPI,
         .videocore_base = VIDEOCORE_BASE_RPI,
         .desc = "Model B",
     },
     {
-        .hwver  = 0x05,
+        .hwver = 0x05,
         .type = RPI_HWVER_TYPE_PI1,
         .periph_base = PERIPH_BASE_RPI,
         .videocore_base = VIDEOCORE_BASE_RPI,
         .desc = "Model B",
     },
     {
-        .hwver  = 0x06,
+        .hwver = 0x06,
         .type = RPI_HWVER_TYPE_PI1,
         .periph_base = PERIPH_BASE_RPI,
         .videocore_base = VIDEOCORE_BASE_RPI,
@@ -130,21 +168,21 @@ static const rpi_hw_t rpi_hw_info[] = {
     // Model A
     //
     {
-        .hwver  = 0x07,
+        .hwver = 0x07,
         .type = RPI_HWVER_TYPE_PI1,
         .periph_base = PERIPH_BASE_RPI,
         .videocore_base = VIDEOCORE_BASE_RPI,
         .desc = "Model A",
     },
     {
-        .hwver  = 0x08,
+        .hwver = 0x08,
         .type = RPI_HWVER_TYPE_PI1,
         .periph_base = PERIPH_BASE_RPI,
         .videocore_base = VIDEOCORE_BASE_RPI,
         .desc = "Model A",
     },
     {
-        .hwver  = 0x09,
+        .hwver = 0x09,
         .type = RPI_HWVER_TYPE_PI1,
         .periph_base = PERIPH_BASE_RPI,
         .videocore_base = VIDEOCORE_BASE_RPI,
@@ -155,21 +193,21 @@ static const rpi_hw_t rpi_hw_info[] = {
     // Model B
     //
     {
-        .hwver  = 0x0d,
+        .hwver = 0x0d,
         .type = RPI_HWVER_TYPE_PI1,
         .periph_base = PERIPH_BASE_RPI,
         .videocore_base = VIDEOCORE_BASE_RPI,
         .desc = "Model B",
     },
     {
-        .hwver  = 0x0e,
+        .hwver = 0x0e,
         .type = RPI_HWVER_TYPE_PI1,
         .periph_base = PERIPH_BASE_RPI,
         .videocore_base = VIDEOCORE_BASE_RPI,
         .desc = "Model B",
     },
     {
-        .hwver  = 0x0f,
+        .hwver = 0x0f,
         .type = RPI_HWVER_TYPE_PI1,
         .periph_base = PERIPH_BASE_RPI,
         .videocore_base = VIDEOCORE_BASE_RPI,
@@ -180,21 +218,21 @@ static const rpi_hw_t rpi_hw_info[] = {
     // Model B+
     //
     {
-        .hwver  = 0x10,
+        .hwver = 0x10,
         .type = RPI_HWVER_TYPE_PI1,
         .periph_base = PERIPH_BASE_RPI,
         .videocore_base = VIDEOCORE_BASE_RPI,
         .desc = "Model B+",
     },
     {
-        .hwver  = 0x13,
+        .hwver = 0x13,
         .type = RPI_HWVER_TYPE_PI1,
         .periph_base = PERIPH_BASE_RPI,
         .videocore_base = VIDEOCORE_BASE_RPI,
         .desc = "Model B+",
     },
     {
-        .hwver  = 0x900032,
+        .hwver = 0x900032,
         .type = RPI_HWVER_TYPE_PI1,
         .periph_base = PERIPH_BASE_RPI,
         .videocore_base = VIDEOCORE_BASE_RPI,
@@ -205,14 +243,14 @@ static const rpi_hw_t rpi_hw_info[] = {
     // Compute Module
     //
     {
-        .hwver  = 0x11,
+        .hwver = 0x11,
         .type = RPI_HWVER_TYPE_PI1,
         .periph_base = PERIPH_BASE_RPI,
         .videocore_base = VIDEOCORE_BASE_RPI,
         .desc = "Compute Module 1",
     },
     {
-        .hwver  = 0x14,
+        .hwver = 0x14,
         .type = RPI_HWVER_TYPE_PI1,
         .periph_base = PERIPH_BASE_RPI,
         .videocore_base = VIDEOCORE_BASE_RPI,
@@ -223,35 +261,35 @@ static const rpi_hw_t rpi_hw_info[] = {
     // Pi Zero
     //
     {
-        .hwver  = 0x900092,
+        .hwver = 0x900092,
         .type = RPI_HWVER_TYPE_PI1,
         .periph_base = PERIPH_BASE_RPI,
         .videocore_base = VIDEOCORE_BASE_RPI,
         .desc = "Pi Zero v1.2",
     },
     {
-        .hwver  = 0x900093,
+        .hwver = 0x900093,
         .type = RPI_HWVER_TYPE_PI1,
         .periph_base = PERIPH_BASE_RPI,
         .videocore_base = VIDEOCORE_BASE_RPI,
         .desc = "Pi Zero v1.3",
     },
     {
-        .hwver  = 0x920093,
+        .hwver = 0x920093,
         .type = RPI_HWVER_TYPE_PI1,
         .periph_base = PERIPH_BASE_RPI,
         .videocore_base = VIDEOCORE_BASE_RPI,
         .desc = "Pi Zero v1.3",
     },
     {
-        .hwver  = 0x9200c1,
+        .hwver = 0x9200c1,
         .type = RPI_HWVER_TYPE_PI1,
         .periph_base = PERIPH_BASE_RPI,
         .videocore_base = VIDEOCORE_BASE_RPI,
         .desc = "Pi Zero W v1.1",
     },
     {
-        .hwver  = 0x9000c1,
+        .hwver = 0x9000c1,
         .type = RPI_HWVER_TYPE_PI1,
         .periph_base = PERIPH_BASE_RPI,
         .videocore_base = VIDEOCORE_BASE_RPI,
@@ -262,21 +300,21 @@ static const rpi_hw_t rpi_hw_info[] = {
     // Model A+
     //
     {
-        .hwver  = 0x12,
+        .hwver = 0x12,
         .type = RPI_HWVER_TYPE_PI1,
         .periph_base = PERIPH_BASE_RPI,
         .videocore_base = VIDEOCORE_BASE_RPI,
         .desc = "Model A+",
     },
     {
-        .hwver  = 0x15,
+        .hwver = 0x15,
         .type = RPI_HWVER_TYPE_PI1,
         .periph_base = PERIPH_BASE_RPI,
         .videocore_base = VIDEOCORE_BASE_RPI,
         .desc = "Model A+",
     },
     {
-        .hwver  = 0x900021,
+        .hwver = 0x900021,
         .type = RPI_HWVER_TYPE_PI1,
         .periph_base = PERIPH_BASE_RPI,
         .videocore_base = VIDEOCORE_BASE_RPI,
@@ -287,21 +325,21 @@ static const rpi_hw_t rpi_hw_info[] = {
     // Pi 2 Model B
     //
     {
-        .hwver  = 0xa01041,
+        .hwver = 0xa01041,
         .type = RPI_HWVER_TYPE_PI2,
         .periph_base = PERIPH_BASE_RPI2,
         .videocore_base = VIDEOCORE_BASE_RPI2,
         .desc = "Pi 2",
     },
     {
-        .hwver  = 0xa01040,
+        .hwver = 0xa01040,
         .type = RPI_HWVER_TYPE_PI2,
         .periph_base = PERIPH_BASE_RPI2,
         .videocore_base = VIDEOCORE_BASE_RPI2,
         .desc = "Pi 2",
     },
     {
-        .hwver  = 0xa21041,
+        .hwver = 0xa21041,
         .type = RPI_HWVER_TYPE_PI2,
         .periph_base = PERIPH_BASE_RPI2,
         .videocore_base = VIDEOCORE_BASE_RPI2,
@@ -311,7 +349,7 @@ static const rpi_hw_t rpi_hw_info[] = {
     // Pi 2 with BCM2837
     //
     {
-        .hwver  = 0xa22042,
+        .hwver = 0xa22042,
         .type = RPI_HWVER_TYPE_PI2,
         .periph_base = PERIPH_BASE_RPI2,
         .videocore_base = VIDEOCORE_BASE_RPI2,
@@ -321,42 +359,42 @@ static const rpi_hw_t rpi_hw_info[] = {
     // Pi 3 Model B
     //
     {
-        .hwver  = 0xa020d3,
+        .hwver = 0xa020d3,
         .type = RPI_HWVER_TYPE_PI2,
         .periph_base = PERIPH_BASE_RPI2,
         .videocore_base = VIDEOCORE_BASE_RPI2,
         .desc = "Pi 3 B+",
     },
     {
-        .hwver  = 0xa02082,
+        .hwver = 0xa02082,
         .type = RPI_HWVER_TYPE_PI2,
         .periph_base = PERIPH_BASE_RPI2,
         .videocore_base = VIDEOCORE_BASE_RPI2,
         .desc = "Pi 3",
     },
     {
-	.hwver  = 0xa02083,
+    .hwver = 0xa02083,
         .type = RPI_HWVER_TYPE_PI2,
         .periph_base = PERIPH_BASE_RPI2,
         .videocore_base = VIDEOCORE_BASE_RPI2,
         .desc = "Pi 3",
     },
     {
-        .hwver  = 0xa22082,
+        .hwver = 0xa22082,
         .type = RPI_HWVER_TYPE_PI2,
         .periph_base = PERIPH_BASE_RPI2,
         .videocore_base = VIDEOCORE_BASE_RPI2,
         .desc = "Pi 3",
     },
     {
-        .hwver  = 0xa22083,
+        .hwver = 0xa22083,
         .type = RPI_HWVER_TYPE_PI2,
         .periph_base = PERIPH_BASE_RPI2,
         .videocore_base = VIDEOCORE_BASE_RPI2,
         .desc = "Pi 3",
     },
     {
-        .hwver  = 0x9020e0,
+        .hwver = 0x9020e0,
         .type = RPI_HWVER_TYPE_PI2,
         .periph_base = PERIPH_BASE_RPI2,
         .videocore_base = VIDEOCORE_BASE_RPI2,
@@ -367,7 +405,7 @@ static const rpi_hw_t rpi_hw_info[] = {
     // Pi Compute Module 3
     //
     {
-        .hwver  = 0xa020a0,
+        .hwver = 0xa020a0,
         .type = RPI_HWVER_TYPE_PI2,
         .periph_base = PERIPH_BASE_RPI2,
         .videocore_base = VIDEOCORE_BASE_RPI2,
@@ -377,7 +415,7 @@ static const rpi_hw_t rpi_hw_info[] = {
     // Pi Compute Module 3+
     //
     {
-        .hwver  = 0xa02100,
+        .hwver = 0xa02100,
         .type = RPI_HWVER_TYPE_PI2,
         .periph_base = PERIPH_BASE_RPI2,
         .videocore_base = VIDEOCORE_BASE_RPI2,
@@ -388,24 +426,26 @@ static const rpi_hw_t rpi_hw_info[] = {
 };
 
 
-const rpi_hw_t *rpi_hw_detect(void)
+const rpi_hw_t* rpi_hw_detect(void)
 {
-    const rpi_hw_t *result = NULL;
+    const rpi_hw_t* result = NULL;
     uint32_t rev;
     unsigned i;
 
 #ifdef __aarch64__
     // On ARM64, read revision from /proc/device-tree as it is not shown in
     // /proc/cpuinfo
-    FILE *f = fopen("/proc/device-tree/system/linux,revision", "r");
+    FILE* f = fopen("/proc/device-tree/system/linux,revision", "r");
     if (!f)
     {
         return NULL;
     }
-    fread(&rev, sizeof(uint32_t), 1, f);
-    #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-        rev = bswap_32(rev);  // linux,revision appears to be in big endian
-    #endif
+    size_t read = fread(&rev, 1, sizeof(uint32_t), f);
+    if (read != sizeof(uint32_t))
+        goto done;
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    rev = bswap_32(rev);  // linux,revision appears to be in big endian
+#endif
 
     for (i = 0; i < (sizeof(rpi_hw_info) / sizeof(rpi_hw_info[0])); i++)
     {
@@ -418,7 +458,7 @@ const rpi_hw_t *rpi_hw_detect(void)
         }
     }
 #else
-    FILE *f = fopen("/proc/cpuinfo", "r");
+    FILE* f = fopen("/proc/cpuinfo", "r");
     char line[LINE_WIDTH_MAX];
 
     if (!f)
@@ -430,7 +470,7 @@ const rpi_hw_t *rpi_hw_detect(void)
     {
         if (strstr(line, HW_VER_STRING))
         {
-            char *substr;
+            char* substr;
 
             substr = strstr(line, ": ");
             if (!substr)
@@ -468,4 +508,3 @@ done:
 
     return result;
 }
-
