@@ -8,12 +8,12 @@ void add_random(thread_context * context, char * args){
     int use_r=1, use_g=1, use_b=1, use_w=1, use_l=1;
     
     if (is_valid_channel_number(channel)){
-        len = ledstring.channel[channel].count;;
+        len = get_led_count(channel);
     }
 	
 	args = read_channel(args, & channel);
 	if (is_valid_channel_number(channel)){
-		len = ledstring.channel[channel].count;;
+		len = get_led_count(channel);
 	}	
 	args = read_int(args, & start);
 	args = read_int(args, & len);
@@ -44,12 +44,12 @@ void add_random(thread_context * context, char * args){
     
     if (is_valid_channel_number(channel)){
 
-        if (start>=ledstring.channel[channel].count) start=0;
-        if ((start+len)>ledstring.channel[channel].count) len=ledstring.channel[channel].count-start;
+        if (start>=get_led_count(channel)) start=0;
+        if ((start+len)>get_led_count(channel)) len=get_led_count(channel)-start;
      
         if (debug) printf("random %d,%d,%d\n", channel, start, len);
         
-        ws2811_led_t * leds = ledstring.channel[channel].leds;
+        ws2811_led_t * leds = get_led_string(channel);
         //unsigned int colors = ledstring[channel].color_size;
         unsigned char r=0,g=0,b=0,w=0,l=0;
         unsigned int i;

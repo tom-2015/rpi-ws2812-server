@@ -17,10 +17,12 @@
 #include <errno.h>
 #include <stdbool.h>
 #include "ws2811.h"
+#include "sk9822.h"
 
 #define DEFAULT_DEVICE_FILE "/dev/ws281x"
 #define DEFAULT_COMMAND_LINE_SIZE 1024
 #define DEFAULT_BUFFER_SIZE 32768
+#define MAX_CHANNELS 32
 
 #define MAX_KEY_LEN 255
 #define MAX_VAL_LEN 255
@@ -33,6 +35,10 @@
 #define MODE_TCP 3
 
 #define ERROR_INVALID_CHANNEL "Invalid channel number, did you call setup and init?\n"
+
+#define CHANNEL_TYPE_NONE 0
+#define CHANNEL_TYPE_WS2811 1
+#define CHANNEL_TYPE_SK9822 2
 
 //USE_JPEG and USE_PNG is enabled through make file
 //to disable compilation of PNG / or JPEG use:
@@ -145,7 +151,17 @@ typedef struct {
 
 thread_context threads[MAX_THREADS+1];
 
-ws2811_t ledstring; //led string object
+typedef struct {
+	int channel_type;  //defines if this channel is WS2811 or SK9822
+	int channel_index; //the channel number in the *_ledstring, at initialization the channel objects are set
+	bool initialized;  //true if initialized
+	ws2811_channel_t* ws2811_channel;
+	sk9822_channel_t* sk9822_channel;
+} channel_info;
+
+ws2811_t ws2811_ledstring; //led string object for WS2811 and compatible chips (DATA ONLY)
+sk9822_t sk9822_ledstring; //led string object for SK9822 chips (CLOCK + DATA)
+channel_info led_channels[MAX_CHANNELS];
 
 void process_character(thread_context * context, char c);
 
@@ -174,6 +190,100 @@ static void setup_handlers(void){
     //struct sigaction sa;
     //sa.sa_handler = ctrl_c_handler,
     //sigaction(SIGTERM, &sa, NULL); //SIGKILL
+}
+
+//checks if a channel_index of channel_type is free or used
+bool is_channel_free(int type, int channel_index) {
+	switch (type) {
+	case CHANNEL_TYPE_SK9822:
+		return sk9822_ledstring.channels[channel_index].count == 0;
+		break;
+	case CHANNEL_TYPE_WS2811:
+		return ws2811_ledstring.channel[channel_index].count == 0;
+		break;
+	}
+}
+
+//returns next free channel index for a channel type
+//returns -1 if all used
+int get_free_channel_index(int type) {
+	int i = 0;
+	int count = 0;
+	switch (type) {
+	case CHANNEL_TYPE_SK9822:
+		count = SK9822_MAX_CHANNELS;
+		break;
+	case CHANNEL_TYPE_WS2811:
+		count = RPI_PWM_CHANNELS;
+		break;
+	}		
+	for (i = 0; i < count; i++) {
+		if (is_channel_free(type, i)) return i;
+	}
+	return -1;
+}
+
+//returns the number of leds in channel_nr
+int get_led_count(int channel_nr) {
+	switch (led_channels[channel_nr].channel_type) {
+	case CHANNEL_TYPE_WS2811:
+		return led_channels[channel_nr].ws2811_channel->count;
+		break;
+	case CHANNEL_TYPE_SK9822:
+		return led_channels[channel_nr].sk9822_channel->count;
+		break;
+	}
+}
+
+//returns number of colors for each LED in a channel
+int get_color_size(int channel_nr) {
+	switch (led_channels[channel_nr].channel_type) {
+	case CHANNEL_TYPE_WS2811:
+		return led_channels[channel_nr].ws2811_channel->color_size;
+		break;
+	case CHANNEL_TYPE_SK9822:
+		return led_channels[channel_nr].sk9822_channel->color_size;
+		break;
+	}
+
+}
+
+//returns led string as led type array, for direct access to leds
+ws2811_led_t* get_led_string(int channel_nr) {
+	switch (led_channels[channel_nr].channel_type) {
+	case CHANNEL_TYPE_WS2811:
+		return led_channels[channel_nr].ws2811_channel->leds;
+		break;
+	case CHANNEL_TYPE_SK9822:
+		return (ws2811_led_t*)led_channels[channel_nr].sk9822_channel->leds;
+		break;
+	}
+	return NULL;
+}
+
+//renders a channel
+void render_channel(int channel) {
+	switch (led_channels[channel].channel_type) {
+	case CHANNEL_TYPE_SK9822:
+		;
+		sk9822_return_t sk9822_res = sk9822_render_channel(led_channels[channel].sk9822_channel);
+		if (sk9822_res != SK9822_SUCCESS) {
+			fprintf(stderr, "sk9822 render failed on channel %d: %s\n", channel, sk9822_get_return_t_str(sk9822_res));
+		}
+		break;
+	case CHANNEL_TYPE_WS2811:
+		;
+		ws2811_return_t ws8211_res = ws2811_render(&ws2811_ledstring);
+		if (ws8211_res != WS2811_SUCCESS) {
+			fprintf(stderr, "ws2811 render failed on channel %d: %s\n", channel, ws2811_get_return_t_str(ws8211_res));
+		}
+		break;
+	}
+}
+
+//returns if channel is a valid led_string index number
+int is_valid_channel_number(unsigned int channel) {
+	return (channel >= 0) && (channel < MAX_CHANNELS) && led_channels[channel].channel_type!=CHANNEL_TYPE_NONE && led_channels[channel].initialized; 
 }
 
 //writes text to the output depending on the mode (TCP=write to socket)
@@ -244,11 +354,6 @@ int deg2color(unsigned char WheelPos) {
 		WheelPos -= 170;
 		return color(WheelPos * 3, 0, 255 - WheelPos * 3);
 	}
-}
-
-//returns if channel is a valid led_string index number
-int is_valid_channel_number(unsigned int channel){
-    return (channel >= 0) && (channel < RPI_PWM_CHANNELS) && ledstring.channel[channel].count>0 && ledstring.device!=NULL;
 }
 
 //reads key from argument buffer
@@ -324,6 +429,8 @@ char * read_uint(char * args, unsigned int * value){
 	return args;	
 }
 
+//reads channel number from command line
+//automatically adjusts the channel number to 0 based index
 char * read_channel(char * args, int * value){
 	if (args!=NULL && *args!=0){
 		args = read_int(args, value);
@@ -412,40 +519,6 @@ unsigned long long time_ms(){
 	return tp.tv_sec * 1000 + tp.tv_usec / 1000;
 }
 
-//initializes channels
-//init <frequency>,<DMA>
-void init_channels(thread_context * context, char * args){
-    char value[MAX_VAL_LEN];
-    int frequency=WS2811_TARGET_FREQ, dma=10;
-    
-    if (ledstring.device!=NULL)	ws2811_fini(&ledstring);
-    
-	args = read_int(args, & frequency);
-	args = read_int(args, &dma);
-
-    ledstring.dmanum=dma;
-    ledstring.freq=frequency;
-    if (debug) printf("Init ws2811 %d,%d\n", frequency, dma);
-    ws2811_return_t ret;
-    if ((ret = ws2811_init(&ledstring))!= WS2811_SUCCESS){
-        fprintf(stderr, "ws2811_init failed: %s\n", ws2811_get_return_t_str(ret));
-    }
-}
-
-//changes the global channel brightness
-//global_brightness <channel>,<value>
-void global_brightness(thread_context * context, char * args){
-	int channel = 1, brightness=255;
-    args = read_channel(args, &channel);
-    args = read_int(args, & brightness);
-    if (is_valid_channel_number(channel)){
-        ledstring.channel[channel].brightness=brightness;
-        if(debug) printf("Global brightness %d, %d\n", channel, brightness);
-    }else{
-        fprintf(stderr,ERROR_INVALID_CHANNEL);
-    }
-}
-
 //expands thread command buffer (increase size by 2 times)
 //thread_context is the context that needs memory expansion
 void expand_thread_data_buffer(thread_context * context){
@@ -471,11 +544,125 @@ void write_thread_buffer (thread_context * context, char c){
 	context->thread_data[context->thread_write_index]=0;
 }
 
+//initializes channels
+//depending on channel chip type it will initialize the proper hardware for all channels
+//init <frequency>,<DMA>
+void init_channels(thread_context* context, char* args) {
+	int i;
+	char value[MAX_VAL_LEN];
+	int frequency = WS2811_TARGET_FREQ, dma = 10;
+
+	args = read_int(args, &frequency);
+	args = read_int(args, &dma);
+
+	bool use_ws2812 = false;
+	bool use_sk9822 = false;
+	ws2811_return_t ws2811_ret;
+	sk9822_return_t sk9822_ret;
+
+	//check which interface to init
+	for (i = 0;i < MAX_CHANNELS; i++) {
+		led_channels[i].initialized = false;
+		switch (led_channels[i].channel_type) {
+		case CHANNEL_TYPE_WS2811:
+			use_ws2812 = true;
+			break;
+		case CHANNEL_TYPE_SK9822:
+			use_sk9822 = true;
+			break;
+		}
+	}
+	
+	//init sk9822
+	if (use_sk9822) {
+		sk9822_fini(&sk9822_ledstring);
+
+		if (debug) printf("Init SPI\n");
+
+		if ((sk9822_ret = sk9822_init(&sk9822_ledstring)) != SK9822_SUCCESS) {
+			fprintf(stderr, "sk9822 init SPI failed: %d, %s\n", sk9822_ret, sk9822_get_return_t_str(sk9822_ret));
+		}
+	}
+
+	//init ws2812
+	if (use_ws2812) {
+		if (ws2811_ledstring.device != NULL) ws2811_fini(&ws2811_ledstring);
+		ws2811_ledstring.dmanum = dma;
+		ws2811_ledstring.freq = frequency;
+
+		if (debug) printf("Init ws2811 %d,%d\n", frequency, dma);
+
+		if ((ws2811_ret = ws2811_init(&ws2811_ledstring)) != WS2811_SUCCESS) {
+			fprintf(stderr, "ws2811_init failed: %s\n", ws2811_get_return_t_str(ws2811_ret));
+		}
+	}
+
+
+
+	//assign the initialized channels to the global channel array depending on type
+	for (i = 0;i < MAX_CHANNELS; i++) {
+		if (led_channels[i].channel_type != CHANNEL_TYPE_NONE) {
+			switch (led_channels[i].channel_type) {
+			case CHANNEL_TYPE_WS2811:
+				led_channels[i].initialized = ws2811_ret == WS2811_SUCCESS;
+				led_channels[i].ws2811_channel = &ws2811_ledstring.channel[led_channels[i].channel_index];
+				if (debug) printf("Init WS2811 for channel: %d, res=%d\n", i, led_channels[i].initialized ? 1 : 0);
+				break;
+			case CHANNEL_TYPE_SK9822:
+				led_channels[i].initialized = sk9822_ret == SK9822_SUCCESS;
+				led_channels[i].sk9822_channel = &sk9822_ledstring.channels[led_channels[i].channel_index];
+				if (debug) printf("Init SK9822 for channel: %d, res=%d\n", i, led_channels[i].initialized ? 1 : 0);
+				break;
+			}
+
+			//initialize the default brightness of each led
+			ws2811_led_t* leds = get_led_string(i);
+			if (leds != NULL) {
+				int count = get_led_count(i);
+				for (int j = 0;j < count ;j++) {
+					leds[j].brightness = 0xFF;
+				}
+			}
+		}
+	}
+}
+
+//resets all initialized channels and sets memory
+void reset_led_strings() {
+	int i = 0;
+
+	if (debug) printf("Resetting all channels.\n");
+
+	if (ws2811_ledstring.device != NULL) ws2811_fini(&ws2811_ledstring);
+	sk9822_fini(&sk9822_ledstring);
+
+	ws2811_ledstring.device = NULL;
+	for (i = 0;i < RPI_PWM_CHANNELS;i++) {
+		ws2811_ledstring.channel[0].gpionum = 0;
+		ws2811_ledstring.channel[0].count = 0;
+		ws2811_ledstring.channel[1].gpionum = 0;
+		ws2811_ledstring.channel[1].count = 0;
+	}
+
+	for (i = 0; i < MAX_CHANNELS; i++) {
+		led_channels[i].channel_index = -1;
+		led_channels[i].channel_type = CHANNEL_TYPE_NONE;
+		led_channels[i].initialized = false;
+		led_channels[i].sk9822_channel = NULL;
+		led_channels[i].ws2811_channel = NULL;
+	}
+
+	create_sk9822(&sk9822_ledstring);
+
+}
+
 //sets the ws2811 channels
 //setup channel, led_count, type, invert, global_brightness, GPIO
+//setup channel, led_count, type, invert, global_brightness, SPI_DEV, SPI_SPEED, ALT_SPI_PIN
 void setup_ledstring(thread_context * context, char * args){
-    int channel=0, led_count=10, type=0, invert=0, brightness=255, GPIO=18;
-	
+    int channel=0, led_count=10, type=0, invert=0, brightness=255, GPIO=18, spi_speed = SK9822_DEFAULT_SPI_SPEED, alt_spi_pin= SK9822_DEFAULT_SPI_GPIO;
+	char spi_dev[PATH_MAX];
+
     const int led_types[]={WS2811_STRIP_RGB, //0 
                            WS2811_STRIP_RBG, //1 
                            WS2811_STRIP_GRB, //2 
@@ -487,7 +674,15 @@ void setup_ledstring(thread_context * context, char * args){
                            SK6812_STRIP_GRBW,//8 
                            SK6812_STRIP_GBRW,//9 
                            SK6812_STRIP_BRGW,//10 
-                           SK6812_STRIP_BGRW //11
+                           SK6812_STRIP_BGRW,//11
+
+						   SK9822_STRIP_RGB, //12
+						   SK9822_STRIP_RBG, //13
+						   SK9822_STRIP_GRB, //14
+						   SK9822_STRIP_GBR, //15
+						   SK9822_STRIP_BRG, //16
+						   SK9822_STRIP_BGR  //17
+
                            };
     
 	args = read_channel(args, & channel);
@@ -495,35 +690,98 @@ void setup_ledstring(thread_context * context, char * args){
 	args = read_int(args, & type);
 	args = read_int(args, & invert);
 	args = read_int(args, & brightness);
-	args = read_int(args, & GPIO);
     
-    if (channel >=0 && channel < RPI_PWM_CHANNELS){
+	if (channel >= 0 && channel < MAX_CHANNELS) {
 
-        if (debug) printf("Initialize channel %d,%d,%d,%d,%d,%d\n", channel, led_count, type, invert, brightness, GPIO);
+		if (debug) printf("Initialize channel %d,%d,%d,%d,%d,%d\n", channel, led_count, type, invert, brightness, GPIO);
 
-        int color_size = 4;       
-        
-        switch (led_types[type]){
-            case WS2811_STRIP_RGB:
-            case WS2811_STRIP_RBG:
-            case WS2811_STRIP_GRB:
-            case WS2811_STRIP_GBR:
-            case WS2811_STRIP_BRG:
-            case WS2811_STRIP_BGR:
-                color_size=3;
-                break;
-        }           
-        
-        ledstring.channel[channel].gpionum = GPIO;
-        ledstring.channel[channel].invert = invert;
-        ledstring.channel[channel].count = led_count;
-        ledstring.channel[channel].strip_type=led_types[type];
-        ledstring.channel[channel].brightness=brightness;
-        ledstring.channel[channel].color_size=color_size;
+		//check if the given channel is already in use
+		if (is_valid_channel_number(channel)) {
+			fprintf(stderr, "Error Channel %d is already in use, use reset command to reinitialize all channels.\n", channel + 1);
+			return;
+		}
+
+		int channel_type = CHANNEL_TYPE_NONE;
+		int color_size = 4;
+
+		switch (led_types[type]) {
+		case WS2811_STRIP_RGB:
+		case WS2811_STRIP_RBG:
+		case WS2811_STRIP_GRB:
+		case WS2811_STRIP_GBR:
+		case WS2811_STRIP_BRG:
+		case WS2811_STRIP_BGR:
+			channel_type = CHANNEL_TYPE_WS2811;
+			color_size = 3;
+			if (type > 11) channel_type = CHANNEL_TYPE_SK9822;
+			break;
+		case SK6812_STRIP_RGBW:
+		case SK6812_STRIP_RBGW:
+		case SK6812_STRIP_GRBW:
+		case SK6812_STRIP_GBRW:
+		case SK6812_STRIP_BRGW:
+		case SK6812_STRIP_BGRW:
+			channel_type = CHANNEL_TYPE_WS2811;
+			color_size = 4;
+			break;
+		}
+
+		int free_channel_index = get_free_channel_index(channel_type); //get next free channel for WS2811 or SK9822 depending on what user wants
+
+		led_channels[channel].channel_type = channel_type; //save the type of channel
+		led_channels[channel].channel_index = free_channel_index; //save this for the init procedure
+
+		switch (channel_type) {
+		case CHANNEL_TYPE_WS2811:
+			if (free_channel_index == -1) {
+				fprintf(stderr, "Error no free channels anymore for led type WS2811/SK6812, max number of PWM led strings is %d\n", RPI_PWM_CHANNELS);
+				return;
+			}
+
+			if (debug) printf("Creating WS2812 channel at index %d.\n", free_channel_index);
+
+			args = read_int(args, &GPIO);
+
+			ws2811_ledstring.channel[free_channel_index].gpionum = GPIO;
+			ws2811_ledstring.channel[free_channel_index].invert = invert;
+			ws2811_ledstring.channel[free_channel_index].count = led_count;
+			ws2811_ledstring.channel[free_channel_index].strip_type = led_types[type];
+			ws2811_ledstring.channel[free_channel_index].brightness = brightness;
+			ws2811_ledstring.channel[free_channel_index].color_size = color_size;
+			break;
+		case CHANNEL_TYPE_SK9822:
+			if (free_channel_index == -1) {
+				fprintf(stderr, "Error no free channels anymore for led type SK9822, max number of SPI led strings is %d\n", SK9822_MAX_CHANNELS);
+				return;
+			}
+
+			if (debug) printf("Creating SK9822 channel at index %d.\n", free_channel_index);
+
+			strcpy(spi_dev, "/dev/spidev0.0");
+			GPIO = SK9822_DEFAULT_SPI_GPIO;
+
+			args = read_str(args, spi_dev, sizeof(spi_dev));
+			args = read_int(args, &spi_speed);
+			args = read_int(args, &GPIO);
+
+			sk9822_ledstring.channels[free_channel_index].brightness = brightness;
+			sk9822_ledstring.channels[free_channel_index].color_size = color_size;
+			sk9822_ledstring.channels[free_channel_index].count = led_count;
+			sk9822_ledstring.channels[free_channel_index].gpionum = GPIO;
+			sk9822_ledstring.channels[free_channel_index].invert = invert;
+			strcpy(sk9822_ledstring.channels[free_channel_index].spi_dev, spi_dev);
+			sk9822_ledstring.channels[free_channel_index].spi_speed = spi_speed;
+			sk9822_ledstring.channels[free_channel_index].strip_type = led_types[type];
+
+			break;
+		default:
+			fprintf(stderr, "Error Unknown led type for setup command of channel %d, led type: %d\n", channel + 1, type);
+			return;
+		}
 
         int max_size=0,i;
         for (i=0; i<RPI_PWM_CHANNELS;i++){
-            int size = DEFAULT_COMMAND_LINE_SIZE + ledstring.channel[i].count * 2 * ledstring.channel[i].color_size;
+            int size = DEFAULT_COMMAND_LINE_SIZE + led_count  * 2 * color_size;
             if (size > max_size){
                 max_size = size;
             }
@@ -531,23 +789,66 @@ void setup_ledstring(thread_context * context, char * args){
         malloc_command_line(context, max_size); //allocate memory for full render data    
     }else{
         if (debug) printf("Channel number %d\n", channel);
-        fprintf(stderr,"Invalid channel number, use channels <number> to initialize total channels you want to use.\n");
+        fprintf(stderr,"Invalid channel number, must be 1-%d\n", MAX_CHANNELS);
     }
 }
+
+//changes the global channel brightness
+//global_brightness <channel>,<value>
+void global_brightness(thread_context* context, char* args) {
+	int channel = 1, brightness = 255;
+	args = read_channel(args, &channel);
+	args = read_int(args, &brightness);
+	if (is_valid_channel_number(channel)) {
+		switch (led_channels[channel].channel_type) {
+		case CHANNEL_TYPE_WS2811:
+			led_channels[channel].ws2811_channel->brightness = brightness;
+			break;
+		case CHANNEL_TYPE_SK9822:
+			led_channels[channel].sk9822_channel->brightness = brightness;
+			break;
+		}
+		if (debug) printf("Global brightness %d, %d\n", channel, brightness);
+	}
+	else {
+		fprintf(stderr, ERROR_INVALID_CHANNEL);
+	}
+}
+
 
 //prints channel settings
 void print_settings(){
     unsigned int i;
-    printf("DMA Freq:   %d\n", ledstring.freq); 
-    printf("DMA Num:    %d\n", ledstring.dmanum);    
-    for (i=0;i<RPI_PWM_CHANNELS;i++){
-        printf("Channel %d:\n", i+1);
-        printf("    GPIO: %d\n", ledstring.channel[i].gpionum);
-        printf("    Invert: %d\n",ledstring.channel[i].invert);
-        printf("    Count:  %d\n",ledstring.channel[i].count);
-        printf("    Colors: %d\n", ledstring.channel[i].color_size);
-        printf("    Type:   %d\n", ledstring.channel[i].strip_type);
-    }
+	bool ws2811_used = false;
+	for (i = 0;i < MAX_CHANNELS;i++) {
+		if (led_channels[i].channel_type != CHANNEL_TYPE_NONE) {
+			printf("Channel %d:\n", i + 1);
+			printf("    Initialized: %d\n", led_channels[i].initialized);
+			printf("    driver channel: %d\n", led_channels[i].channel_index);
+			switch (led_channels[i].channel_type) {
+			case CHANNEL_TYPE_WS2811:
+				ws2811_used = true;
+				printf("    Type:   WS2811\n");
+				printf("    GPIO:   %d\n", ws2811_ledstring.channel[i].gpionum);
+				printf("    Invert: %d\n", ws2811_ledstring.channel[i].invert);
+				printf("    Count:  %d\n", ws2811_ledstring.channel[i].count);
+				printf("    Colors: %d\n", ws2811_ledstring.channel[i].color_size);
+				printf("    Type:   %d\n", ws2811_ledstring.channel[i].strip_type);
+				break;
+			case CHANNEL_TYPE_SK9822:
+				printf("    Type:        SK9822\n");
+				printf("    SPI-DEV:     %s\n", sk9822_ledstring.channels[i].spi_dev);
+				printf("    SPI-Speed:   %d kHz\n", sk9822_ledstring.channels[i].spi_speed / 1000);
+				printf("    GPIO:        %d\n", sk9822_ledstring.channels[i].gpionum);
+				break;
+			}
+		}
+	}
+	if (ws2811_used) {
+		printf("WS2812 DMA Freq:     %d\n", ws2811_ledstring.freq);
+		printf("WS2812 DMA Num:      %d\n", ws2811_ledstring.dmanum);
+		//printf("WS2811 driver mode:  %d\n", ws2811_ledstring.device.driver_mode);
+	}
 }
 
 //sends the buffer to the leds
@@ -572,13 +873,13 @@ void render(thread_context * context, char * args){
                 args = read_int(args, & start); //read start position
                 while (*args!=0 && (*args==' ' || *args==',')) args++; //skip white space
                 
-                if (debug) printf("Render channel %d selected start at %d leds %d\n", channel, start, ledstring.channel[channel].count);
+                if (debug) printf("Render channel %d selected start at %d leds %d\n", channel, start, get_led_count(channel));
                 
                 size = strlen(args);
-                int led_count = ledstring.channel[channel].count;            
+                int led_count = get_led_count(channel);            
                 int led_index = start % led_count;
-                int color_count = ledstring.channel[channel].color_size;
-                ws2811_led_t * leds = ledstring.channel[channel].leds;
+                int color_count = get_color_size(channel);
+				ws2811_led_t* leds = get_led_string(channel);
 
                 while (*args!=0){
                     unsigned int color=0;
@@ -590,8 +891,9 @@ void render(thread_context * context, char * args){
             }			
         }
 	}
+	
 	if (is_valid_channel_number(channel)){
-		ws2811_render(&ledstring);
+		render_channel(channel);
 	}else{
 		fprintf(stderr,ERROR_INVALID_CHANNEL);
 	}
@@ -628,7 +930,7 @@ void save_state(thread_context * context, char * args){
 	char filename[MAX_VAL_LEN];
 
 	args = read_channel(args, & channel);
-	if (is_valid_channel_number(channel)) len=ledstring.channel[channel].count;
+	if (is_valid_channel_number(channel)) len=get_led_count(channel);
 	args = read_str(args, filename, sizeof(filename));
 	args = read_int(args, & start);
 	args = read_int(args, & len);
@@ -637,7 +939,7 @@ void save_state(thread_context * context, char * args){
 		FILE * outfile;
 
 		if (start<0) start=0;
-        if (start+len> ledstring.channel[channel].count) len = ledstring.channel[channel].count-start;
+        if (start+len> get_led_count(channel)) len = get_led_count(channel)-start;
 		
 		if (debug) printf("save_state %d,%s,%d,%d\n", channel, filename, start, len);
 		
@@ -645,7 +947,7 @@ void save_state(thread_context * context, char * args){
 			fprintf(stderr, "Error: can't open %s\n", filename);
 			return;
 		}
-		ws2811_led_t * leds = ledstring.channel[channel].leds;
+		ws2811_led_t * leds = get_led_string(channel);
 		
 		for (i=0;i<len;i++){
 			color = leds[start+i].color;
@@ -665,7 +967,7 @@ void load_state(thread_context * context, char * args){
 	char fline[MAX_VAL_LEN];
 
 	args = read_channel(args, & channel);
-	if (is_valid_channel_number(channel)) len=ledstring.channel[channel].count;
+	if (is_valid_channel_number(channel)) len=get_led_count(channel);
 	args = read_str(args, filename, sizeof(filename));
 	args = read_int(args, & start);
 	args = read_int(args, & len);
@@ -673,7 +975,7 @@ void load_state(thread_context * context, char * args){
 	if (is_valid_channel_number(channel)){	
 	
 		if (start<0) start=0;
-		if (start+len> ledstring.channel[channel].count) len = ledstring.channel[channel].count-start;
+		if (start+len> get_led_count(channel)) len = get_led_count(channel)-start;
 		
 		if (debug) printf("load_state %d,%s,%d,%d\n", channel, filename, start, len);
 		
@@ -682,7 +984,7 @@ void load_state(thread_context * context, char * args){
 			return;
 		}
 		
-		ws2811_led_t * leds = ledstring.channel[channel].leds;
+		ws2811_led_t* leds = get_led_string(channel);
 		
 		while (i < len && !feof(infile) && fscanf(infile, "%x,%x", & color, & brightness)>0){
 			leds[start+i].color = color;
@@ -1141,9 +1443,11 @@ void execute_command(thread_context * context, char * command_line){
 			wait_signal(context, arg);
 		}else if (strcmp(command, "signal_thread")==0){
 			signal_thread(context, arg);
-        }else if (strcmp(command, "debug")==0){
-            if (debug) debug=0;
-            else debug=1;
+		}else if (strcmp(command, "debug") == 0) {
+			if (debug) debug = 0;
+			else debug = 1;
+		}else if (strcmp(command, "reset") == 0){
+			reset_led_strings();
         }else if (strcmp(command, "exit")==0){
             printf("Exiting.\n");
             exit_program=1;
@@ -1289,13 +1593,7 @@ int main(int argc, char *argv[]){
     
     srand (time(NULL));
 
-    ledstring.device=NULL;
-    for (i=0;i<RPI_PWM_CHANNELS;i++){
-        ledstring.channel[0].gpionum = 0;
-        ledstring.channel[0].count = 0;
-        ledstring.channel[1].gpionum = 0;
-        ledstring.channel[1].count = 0;
-    }
+	reset_led_strings();
     
 	
 	for (i=0;i<MAX_THREADS;i++){
@@ -1387,7 +1685,7 @@ int main(int argc, char *argv[]){
 				strcpy(initialize_cmd, argv[arg_idx]);
 			}
 		}else if (strcmp(argv[arg_idx], "-?")==0){
-			printf("WS2812 Server program for Raspberry Pi V4.1\n");
+			printf("WS2812 Server program for Raspberry Pi V5.0\n");
 			printf("Command line options:\n");
 			printf("-p <pipename>       	creates a named pipe at location <pipename> where you can write command to.\n");
 			printf("-f <filename>       	read commands from <filename>\n");
@@ -1487,7 +1785,7 @@ int main(int argc, char *argv[]){
 	
 
 	//if (thread_data!=NULL) free(thread_data);
-    if (ledstring.device!=NULL) ws2811_fini(&ledstring);
-    
+    if (ws2811_ledstring.device!=NULL) ws2811_fini(&ws2811_ledstring);
+	sk9822_fini(&sk9822_ledstring);
     return ret;
 }

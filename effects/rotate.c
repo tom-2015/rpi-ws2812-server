@@ -1,7 +1,7 @@
 void rotate_strip(thread_context * context, int channel, int nplaces, int direction, unsigned int new_color, int use_new_color, int new_brightness){
-	ws2811_led_t tmp_led;
-    ws2811_led_t * leds = ledstring.channel[channel].leds;
-    unsigned int led_count = ledstring.channel[channel].count;
+	ws2811_led_t tmp_led; 
+	ws2811_led_t* leds =  get_led_string(channel);
+    unsigned int led_count = get_led_count(channel);
 	unsigned int n,i;
 	for(n=0;n<nplaces;n++){
 		if (direction==1){
@@ -43,7 +43,7 @@ void rotate(thread_context * context, char * args){
 	args = read_int(args, & direction);
 	if (is_valid_channel_number(channel)){
 		use_new_color= (args!=NULL && *args!=0);
-		args = read_color_arg(args, & new_color, ledstring.channel[channel].color_size);
+		args = read_color_arg(args, & new_color, get_color_size(channel));
 		read_brightness(args, & new_brightness);
 	}
 	

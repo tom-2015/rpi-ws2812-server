@@ -37,14 +37,17 @@ endif
 ws2811.o: ws2811.c ws2811.h rpihw.h pwm.h pcm.h mailbox.h clk.h gpio.h dma.h rpihw.h readpng.h
 	$(CC) -c $< -o $@
 
-main.o: main.c ws2811.h effects/rotate.c effects/rainbow.c effects/fill.c effects/brightness.c effects/fade.c effects/blink.c effects/gradient.c effects/add_random.c effects/random_fade_in_out.c effects/chaser.c effects/color_change.c effects/fly_in.c effects/fly_out.c effects/read_png.c effects/read_jpg.c effects/progress.c
+sk9822.o: sk9822.c sk9822.h ws2811.h mailbox.h
+	$(CC) -c $< -o $@
+
+main.o: main.c ws2811.h sk9822.o ws2811.o effects/rotate.c effects/rainbow.c effects/fill.c effects/brightness.c effects/fade.c effects/blink.c effects/gradient.c effects/add_random.c effects/random_fade_in_out.c effects/chaser.c effects/color_change.c effects/fly_in.c effects/fly_out.c effects/read_png.c effects/read_jpg.c effects/progress.c
 	$(CC) -c $< -o $@
 
 ifneq (1,$(NO_PNG))
-ws2812svr: main.o dma.o mailbox.o pwm.o pcm.o ws2811.o rpihw.o readpng.o
+ws2812svr: main.o dma.o mailbox.o pwm.o pcm.o ws2811.o sk9822.o rpihw.o readpng.o
 	$(CC) $(LINK) $^ -o $@
 else
-ws2812svr: main.o dma.o mailbox.o pwm.o pcm.o ws2811.o rpihw.o
+ws2812svr: main.o dma.o mailbox.o pwm.o pcm.o ws2811.o sk9822.o rpihw.o
 	$(CC) $(LINK) $^ -o $@
 endif
 

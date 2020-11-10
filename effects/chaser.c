@@ -17,9 +17,9 @@ void chaser(thread_context * context, char * args){
 	args = read_channel(args, & channel);
 
 	if (is_valid_channel_number(channel)){
-		len = ledstring.channel[channel].count;
+		len = get_led_count(channel);
 		args = read_int(args, & duration);
-		args = read_color_arg(args, & color, ledstring.channel[channel].color_size);
+		args = read_color_arg(args, & color, get_color_size(channel));
 		args = read_int(args, & count);
 		args = read_int(args, & direction);
 		args = read_int(args, & delay);
@@ -30,15 +30,15 @@ void chaser(thread_context * context, char * args){
 	}
 	
 	if (is_valid_channel_number(channel)){
-		if (start>=ledstring.channel[channel].count) start=0;
-		if ((start+len)>ledstring.channel[channel].count) len=ledstring.channel[channel].count-start;
+		if (start>=get_led_count(channel)) start=0;
+		if ((start+len)>get_led_count(channel)) len=get_led_count(channel)-start;
 		if (len==0) len = 1;
 		if (count>len) count = len;
 		
 		if (debug) printf("chaser %d %d %d %d %d %d %d %d %d %d\n", channel, duration, color, count, direction, delay, start, len, brightness, loops);
 	
 		ws2811_led_t * org_leds = malloc(len * sizeof(ws2811_led_t));
-		ws2811_led_t * leds = ledstring.channel[channel].leds;
+		ws2811_led_t * leds = get_led_string(channel);
 		memcpy(org_leds, &leds[start], len * sizeof(ws2811_led_t)); //create a backup of original leds
 		
 		int loop_count=0;
@@ -56,7 +56,7 @@ void chaser(thread_context * context, char * args){
 				}
 			}
 			
-			ws2811_render(&ledstring);
+			render_channel(channel);
 			usleep(delay * 1000);
 			
 			for (n=0;n<count;n++){

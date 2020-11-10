@@ -60,12 +60,12 @@ void random_fade_in_out(thread_context * context, char * args){
     fade_in_out_led_status *led_status;
 	
     if (is_valid_channel_number(channel)){
-        len = ledstring.channel[channel].count;;
+        len = get_led_count(channel);;
     }
 	
 	args = read_channel(args, & channel);
 	if (is_valid_channel_number(channel)){
-		len = ledstring.channel[channel].count;
+		len = get_led_count(channel);
 		count = len / 3;
 		args = read_int(args, & duration);
 		args = read_int(args, & count);
@@ -77,19 +77,19 @@ void random_fade_in_out(thread_context * context, char * args){
 		args = read_int(args, & start);
 		args = read_int(args, & len);
 		change_color = args!=NULL && *args!=0;
-		args = read_color_arg(args, & color, ledstring.channel[channel].color_size);
+		args = read_color_arg(args, & color, get_color_size(channel));
 		args = read_brightness(args, & brightness);
 		
-		if (start>=ledstring.channel[channel].count) start=0;
-        if ((start+len)>ledstring.channel[channel].count) len=ledstring.channel[channel].count-start;
+		if (start>=get_led_count(channel)) start=0;
+        if ((start+len)>get_led_count(channel)) len=get_led_count(channel)-start;
 		if (count>len) count = len;
 		
 		if (debug) printf("random_fade_in_out %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n", channel, count, delay, step, sync_delay, inc_dec, brightness, start, len, color);
 		
 		led_status = (fade_in_out_led_status *)malloc(count * sizeof(fade_in_out_led_status));
-		ws2811_led_t * leds = ledstring.channel[channel].leds;
+		ws2811_led_t * leds = get_led_string(channel);
 		
-		ws2811_render(&ledstring);
+		render_channel(channel);
 		
 		for (i=0; i<count;i++){ //first assign count random leds for fading
 			int index=find_random_free_led_index(led_status, count, start, len);
@@ -129,7 +129,7 @@ void random_fade_in_out(thread_context * context, char * args){
 					led_status[i].delay--;
 				}
 			}		
-			ws2811_render(&ledstring);
+			render_channel(channel);
 			usleep(delay * 1000);				
 		}
 		
@@ -137,7 +137,7 @@ void random_fade_in_out(thread_context * context, char * args){
 			leds[led_status[i].led_index].brightness = led_status[i].start_brightness;
 			if (change_color) leds[led_status[i].led_index].color = led_status[i].start_color;
 		}
-		ws2811_render(&ledstring);
+		render_channel(channel);
 		free (led_status);
 	}else{
 		fprintf(stderr, ERROR_INVALID_CHANNEL);

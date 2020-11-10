@@ -20,12 +20,12 @@ void readpng(thread_context * context,char * args){
 	int row_index=0;
 	
 	args = read_channel(args, & channel);
-	if (is_valid_channel_number(channel)) len=ledstring.channel[channel].count;
+	if (is_valid_channel_number(channel)) len = get_led_count(channel);
 	args = read_str(args, filename, sizeof(filename));
 	args = read_str(args, value, sizeof(filename));
 	if (strlen(value)>=6){
 		if (is_valid_channel_number(channel)){
-			read_color(value, & backcolor, ledstring.channel[channel].color_size);
+			read_color(value, & backcolor, get_color_size(channel));
 			backcolortype=1;
 		}
 	}else if (strcmp(value, "W")==0){
@@ -50,8 +50,9 @@ void readpng(thread_context * context,char * args){
 		uch bg_red=0, bg_green=0, bg_blue=0;
 
 		if (start<0) start=0;
-        if (start+len> ledstring.channel[channel].count) len = ledstring.channel[channel].count-start;
-		
+        if (start+len> get_led_count(channel)) len = get_led_count(channel) -start;
+		int color_size = get_color_size(channel);
+
 		if (debug) printf("readpng %d,%s,%d,%d,%d,%d,%d,%d\n", channel, filename, backcolor, start, len,offset,op, delay);
 		
 		if ((infile = fopen(filename, "rb")) == NULL) {
@@ -100,10 +101,10 @@ void readpng(thread_context * context,char * args){
 			uch r, g, b, a;
 			uch *src;
 			
-			ws2811_led_t * leds = ledstring.channel[channel].leds;
+			ws2811_led_t * leds = get_led_string(channel);
 		
-			if (start>=ledstring.channel[channel].count) start=0;
-			if ((start+len)>ledstring.channel[channel].count) len=ledstring.channel[channel].count-start;
+			if (start>=get_led_count(channel)) start=0;
+			if ((start+len)> get_led_count(channel)) len= get_led_count(channel) -start;
 			
 			led_idx=start; //start at this led index
 			//load all pixels
@@ -127,7 +128,7 @@ void readpng(thread_context * context,char * args){
 						if (debug) printf("led %d= r %d,g %d,b %d,a %d, PNG channels=%d, PNG idx=%d\n", led_idx, r, g, b, a,image_channels,png_idx);
 						if (led_idx < start + len){
 							int fill_color;
-							if (backcolortype==2 && ledstring.channel[channel].color_size>3){
+							if (backcolortype==2 && color_size>3){
 								fill_color=color_rgbw(r,g,b,a);
 							}else{
 								fill_color=color(r,g,b);
@@ -163,7 +164,7 @@ void readpng(thread_context * context,char * args){
 							if (delay!=0){//reset led index if we are at end of led string and delay
 								led_idx=start;
 								row_index=0;
-								ws2811_render(&ledstring);
+								render_channel(channel);
 								usleep(delay * 1000);
 							}else{
 								row = image_height; //exit reading

@@ -7,12 +7,12 @@ void gradient (thread_context * context, char * args){
     char component='L'; //L is brightness level
     
     if (is_valid_channel_number(channel)){
-        len = ledstring.channel[channel].count;;
+        len = get_led_count(channel);
     }
 	
 	args = read_channel(args, & channel);
 	if (is_valid_channel_number(channel)){
-		len = ledstring.channel[channel].count;;
+		len = get_led_count(channel);
 	}	
 	args = read_val(args, value, MAX_VAL_LEN);
 	component=toupper(value[0]);
@@ -26,15 +26,15 @@ void gradient (thread_context * context, char * args){
         if (startlevel>0xFF) startlevel=255;
         if (endlevel>0xFF) endlevel=255;
         
-        if (start>=ledstring.channel[channel].count) start=0;
-        if ((start+len)>ledstring.channel[channel].count) len=ledstring.channel[channel].count-start;
+        if (start>=get_led_count(channel)) start=0;
+        if ((start+len)>get_led_count(channel)) len=get_led_count(channel)-start;
         
         
         float step = 1.0*(endlevel-startlevel) / (float)(len-1);
         
         if (debug) printf("gradient %d, %c, %d, %d, %d,%d\n", channel, component, startlevel, endlevel, start,len);
         
-        ws2811_led_t * leds = ledstring.channel[channel].leds;
+        ws2811_led_t * leds = get_led_string(channel);
         
         float flevel = startlevel;
         int i;

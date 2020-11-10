@@ -5,16 +5,16 @@ void blink (thread_context * context, char * args){
 	unsigned int start=0, len=0;
     
     if (is_valid_channel_number(channel)){
-        len = ledstring.channel[channel].count;;
+        len = get_led_count(channel);
     }
 	
 	args = read_channel(args, & channel);
 	if (is_valid_channel_number(channel)){
-		len = ledstring.channel[channel].count;;
+		len = get_led_count(channel);
 	}	
 	
-	if (is_valid_channel_number(channel)) args = read_color_arg(args, & color1, ledstring.channel[channel].color_size);
-	if (is_valid_channel_number(channel)) args = read_color_arg(args, & color2, ledstring.channel[channel].color_size);
+	if (is_valid_channel_number(channel)) args = read_color_arg(args, & color1, get_color_size(channel));
+	if (is_valid_channel_number(channel)) args = read_color_arg(args, & color2, get_color_size(channel));
 	args = read_int(args, & delay);
 	args = read_int(args, & count);
 	args = read_int(args, & start);
@@ -23,14 +23,14 @@ void blink (thread_context * context, char * args){
             
 	if (is_valid_channel_number(channel)){
 
-        if (start>=ledstring.channel[channel].count) start=0;
-        if ((start+len)>ledstring.channel[channel].count) len=ledstring.channel[channel].count-start;
+        if (start>=get_led_count(channel)) start=0;
+        if ((start+len)>get_led_count(channel)) len=get_led_count(channel)-start;
         
         if (delay<=0) delay=100;
         
         if (debug) printf("blink %d, %d, %d, %d, %d, %d, %d\n", channel, color1, color2, delay, count, start, len);
         
-        ws2811_led_t * leds = ledstring.channel[channel].leds;
+        ws2811_led_t * leds = get_led_string(channel);
         int i,blinks;
         for (blinks=0; blinks<count;blinks++){
             for (i=start;i<start+len;i++){
@@ -40,7 +40,7 @@ void blink (thread_context * context, char * args){
 					leds[i].color=color2;
 				}
             }
-            ws2811_render(&ledstring);
+            render_channel(channel);
             usleep(delay * 1000);
 			if (context->end_current_command) break; //signal to exit this command
         } 

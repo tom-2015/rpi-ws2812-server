@@ -32,7 +32,7 @@ void progress(thread_context * context, char * args) {
 	unsigned int color, tmp_color, repl_color;
 	
 	args = read_channel(args, & channel);
-	if (is_valid_channel_number(channel)) len=ledstring.channel[channel].count;
+	if (is_valid_channel_number(channel)) len=get_led_count(channel);
 	args = read_int(args, & direction);
 	args = read_int(args, & delay);
 	args = read_int(args, & start);
@@ -43,12 +43,12 @@ void progress(thread_context * context, char * args) {
 
 	if (is_valid_channel_number(channel)){		
         if (start<0) start=0;
-        if (start+len> ledstring.channel[channel].count) len = ledstring.channel[channel].count-start;
+        if (start+len> get_led_count(channel)) len = get_led_count(channel)-start;
         
         if (debug) printf("progress %d,%d,%d,%d,%d,%d,%d,%d,%d\n", context->id, channel, direction, delay, start, len, brightness_on, brightness_off, value);
        
         int i;
-        ws2811_led_t * leds = ledstring.channel[channel].leds;
+        ws2811_led_t * leds = get_led_string(channel);
 
 		if (delay==0){
 			if (value<0) value=0;
@@ -56,7 +56,7 @@ void progress(thread_context * context, char * args) {
 		}else{
 			for (i=0;i<=len;i++){
 				set_progress(leds, direction, start, len, 100.0f * (float)i/(float)len, brightness_on, brightness_off);
-				ws2811_render(&ledstring);
+				render_channel(channel);
 				usleep(delay * 1000);		
 				if (context->end_current_command) break; //signal to exit this command
 			}

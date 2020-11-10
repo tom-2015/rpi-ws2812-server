@@ -16,7 +16,7 @@
  *         provided with the distribution.
  *     3.  Neither the name of the owner nor the names of its contributors may be used to endorse
  *         or promote products derived from this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
  * FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE
@@ -31,23 +31,24 @@
 #ifndef __PCM_H__
 #define __PCM_H__
 
+#include <stdint.h>
 
-/*
- *
- * Pin mapping of alternate pin configuration for PCM
- *
- * GPIO   ALT PCM_CLK   ALT PCM-FS   ALT PCM_DIN   ALT PCM_DOUT
- *
- *  18        0             
- *  19                      0
- *  20                                   0
- *  21                                                 0
- *  28        2 
- *  29                      2
- *  30                                   2
- *  31                                                 2
- *
- */
+ /*
+  *
+  * Pin mapping of alternate pin configuration for PCM
+  *
+  * GPIO   ALT PCM_CLK   ALT PCM-FS   ALT PCM_DIN   ALT PCM_DOUT
+  *
+  *  18        0
+  *  19                      0
+  *  20                                   0
+  *  21                                                 0
+  *  28        2
+  *  29                      2
+  *  30                                   2
+  *  31                                                 2
+  *
+  */
 
 
 typedef struct
@@ -75,7 +76,7 @@ typedef struct
 #define RPI_PCM_CS_RXON                         (1 << 1)
 #define RPI_PCM_CS_EN                           (1 << 0)
     uint32_t fifo;
-    uint32_t mode;;
+    uint32_t mode;
 #define RPI_PCM_MODE_CLK_DIS                    (1 << 28)
 #define RPI_PCM_MODE_PDMN                       (1 << 27)
 #define RPI_PCM_MODE_PDME                       (1 << 26)
@@ -148,7 +149,7 @@ typedef struct
 typedef struct
 {
     const int count;
-    const pcm_pin_table_t *pins;
+    const pcm_pin_table_t* pins;
 } pcm_pin_tables_t;
 
 

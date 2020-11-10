@@ -15,7 +15,7 @@
  *         provided with the distribution.
  *     3.  Neither the name of the owner nor the names of its contributors may be used to endorse
  *         or promote products derived from this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
  * FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE
@@ -30,6 +30,7 @@
 #ifndef __GPIO_H__
 #define __GPIO_H__
 
+#include <stdint.h>
 
 typedef struct
 {
@@ -65,7 +66,7 @@ typedef struct
 #define GPIO_OFFSET                              (0x00200000)
 
 
-static inline void gpio_function_set(volatile gpio_t *gpio, uint8_t pin, uint8_t function)
+static inline void gpio_function_set(volatile gpio_t* gpio, uint8_t pin, uint8_t function)
 {
     int regnum = pin / 10;
     int offset = (pin % 10) * 3;
@@ -80,7 +81,7 @@ static inline void gpio_function_set(volatile gpio_t *gpio, uint8_t pin, uint8_t
     gpio->fsel[regnum] |= ((funcmap[function]) << offset);
 }
 
-static inline void gpio_level_set(volatile gpio_t *gpio, uint8_t pin, uint8_t level)
+static inline void gpio_level_set(volatile gpio_t* gpio, uint8_t pin, uint8_t level)
 {
     int regnum = pin >> 5;
     int offset = (pin & 0x1f);
@@ -95,7 +96,7 @@ static inline void gpio_level_set(volatile gpio_t *gpio, uint8_t pin, uint8_t le
     }
 }
 
-static inline void gpio_output_set(volatile gpio_t *gpio, uint8_t pin, uint8_t output)
+static inline void gpio_output_set(volatile gpio_t* gpio, uint8_t pin, uint8_t output)
 {
     int regnum = pin / 10;
     int offset = (pin % 10) * 3;

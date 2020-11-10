@@ -13,7 +13,7 @@ void readjpg(thread_context * context, char * args){
 	int op=0,delay=0;
     
 	args = read_channel(args, & channel);
-	if (is_valid_channel_number(channel)) len=ledstring.channel[channel].count;
+	if (is_valid_channel_number(channel)) len = get_led_count(channel);
 	args = read_str(args, filename, sizeof(filename));
 	args = read_int(args, &start);
 	args = read_int(args, &len);
@@ -64,10 +64,10 @@ void readjpg(thread_context * context, char * args){
 		int i=0,jpg_idx=0,led_idx; //pixel index for current row, jpeg image, led string
 		buffer = (*cinfo.mem->alloc_sarray)((j_common_ptr) &cinfo, JPOOL_IMAGE, row_stride, 1);
 
-		ws2811_led_t * leds = ledstring.channel[channel].leds;
+		ws2811_led_t * leds = get_led_string(channel);
 		
-		if (start>=ledstring.channel[channel].count) start=0;
-		if ((start+len)>ledstring.channel[channel].count) len=ledstring.channel[channel].count-start;
+		if (start>=get_led_count(channel)) start=0;
+		if ((start+len)> get_led_count(channel)) len= get_led_count(channel)-start;
 		
 		led_idx=start; //start at this led index
 		
@@ -115,7 +115,7 @@ void readjpg(thread_context * context, char * args){
 						if (delay!=0){//reset led index if we are at end of led string and delay
 							led_idx=start;
 							row_index=0;
-							ws2811_render(&ledstring);
+							render_channel(channel);
 							usleep(delay * 1000);
 						}else{
 							eofstring=1;

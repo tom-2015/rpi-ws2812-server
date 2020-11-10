@@ -13,7 +13,7 @@ void fly_out(thread_context * context, char * args) {
 	unsigned int color, tmp_color, repl_color;
 	
 	args = read_channel(args, & channel);
-	if (is_valid_channel_number(channel)) len=ledstring.channel[channel].count;
+	if (is_valid_channel_number(channel)) len=get_led_count(channel);
 	args = read_int(args, & direction);
 	args = read_int(args, & delay);
 	args = read_int(args, & brightness);
@@ -23,17 +23,17 @@ void fly_out(thread_context * context, char * args) {
 	use_color = (args!=NULL && (*args)!=0);
 	
 	if (is_valid_channel_number(channel)){		
-		args = read_color_arg(args, & color, ledstring.channel[channel].color_size);
+		args = read_color_arg(args, & color, get_color_size(channel));
         if (start<0) start=0;
-        if (start+len> ledstring.channel[channel].count) len = ledstring.channel[channel].count-start;
+        if (start+len> get_led_count(channel)) len = get_led_count(channel)-start;
         
         if (debug) printf("fly_out %d,%d,%d,%d,%d,%d,%d,%d,%d\n", channel, direction, delay, brightness, start, len, end_brightness, color, use_color);
         
-        int numPixels = len; //ledstring.channel[channel].count;;
+        int numPixels = len; //get_led_count(channel);;
         int i, j;
-        ws2811_led_t * leds = ledstring.channel[channel].leds;
+        ws2811_led_t * leds = get_led_string(channel);
 		
-		ws2811_render(&ledstring);
+		render_channel(channel);
 		for (i=0;i<len;i++){
 			if (direction){
 				repl_color = leds[start+i].color;
@@ -58,7 +58,7 @@ void fly_out(thread_context * context, char * args) {
 					tmp_color = leds[start+len-i-1+j].color;
 					leds[start+len-i-1+j].color = repl_color;
 				}
-				ws2811_render(&ledstring);
+				render_channel(channel);
 				usleep(delay * 1000);
 				if (direction){
 					leds[start+i-j].brightness = end_brightness;	
@@ -71,7 +71,7 @@ void fly_out(thread_context * context, char * args) {
 			}
 			
 			if (context->end_current_command) break; //signal to exit this command
-			ws2811_render(&ledstring);
+			render_channel(channel);
 			usleep(delay * 1000);
 						
 		}
