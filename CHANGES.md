@@ -1,3 +1,7 @@
+# Version 5.0
+* support for new Raspberry Pi 4 revisions
+* support added for SK9822 chip
+
 # Version 4.0
 
 * now possible to run multiple threads in the background executing different commands at the same time.
