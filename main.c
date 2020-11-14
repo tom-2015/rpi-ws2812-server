@@ -1468,7 +1468,7 @@ void process_character(thread_context * context, char c){
             context->command_index=0;
         }
     }else{
-        if (!(context->command_index==0 && c==' ')){
+        if (!(context->command_index==0 && (c == ' ' || c == '\t')){
             context->command_line[context->command_index]=(char)c;
             context->command_index++;
             if (context->command_index==context->command_line_size) context->command_index=0;
