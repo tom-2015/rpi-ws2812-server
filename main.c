@@ -162,6 +162,7 @@ typedef struct {
 ws2811_t ws2811_ledstring; //led string object for WS2811 and compatible chips (DATA ONLY)
 sk9822_t sk9822_ledstring; //led string object for SK9822 chips (CLOCK + DATA)
 channel_info led_channels[MAX_CHANNELS];
+pthread_mutex_t ws2812_render_mutex;
 
 void process_character(thread_context * context, char c);
 
@@ -272,8 +273,9 @@ void render_channel(int channel) {
 		}
 		break;
 	case CHANNEL_TYPE_WS2811:
-		;
+		pthread_mutex_lock(&ws2812_render_mutex);
 		ws2811_return_t ws8211_res = ws2811_render(&ws2811_ledstring);
+		pthread_mutex_unlock(&ws2812_render_mutex);
 		if (ws8211_res != WS2811_SUCCESS) {
 			fprintf(stderr, "ws2811 render failed on channel %d: %s\n", channel, ws2811_get_return_t_str(ws8211_res));
 		}
@@ -1595,7 +1597,7 @@ int main(int argc, char *argv[]){
 
 	reset_led_strings();
     
-	
+	pthread_mutex_init(&ws2812_render_mutex, NULL);
 	for (i=0;i<MAX_THREADS;i++){
 		threads[i].thread=0;
 		pthread_mutex_init(&threads[i].sync_mutex,NULL);
