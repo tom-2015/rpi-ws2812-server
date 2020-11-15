@@ -1,4 +1,7 @@
 # Version 5.0
+* Fix flickering when using multiple threads and 2xws2811 led strings
+
+# Version 5.0
 * support for new Raspberry Pi 4 revisions
 * support added for SK9822 chip
 

@@ -264,6 +264,7 @@ ws2811_led_t* get_led_string(int channel_nr) {
 
 //renders a channel
 void render_channel(int channel) {
+	
 	switch (led_channels[channel].channel_type) {
 	case CHANNEL_TYPE_SK9822:
 		;
@@ -274,7 +275,7 @@ void render_channel(int channel) {
 		break;
 	case CHANNEL_TYPE_WS2811:
 		pthread_mutex_lock(&ws2812_render_mutex);
-		ws2811_return_t ws8211_res = ws2811_render(&ws2811_ledstring);
+		ws2811_return_t ws8211_res = ws2811_render(&ws2811_ledstring, channel);
 		pthread_mutex_unlock(&ws2812_render_mutex);
 		if (ws8211_res != WS2811_SUCCESS) {
 			fprintf(stderr, "ws2811 render failed on channel %d: %s\n", channel, ws2811_get_return_t_str(ws8211_res));
@@ -1687,7 +1688,7 @@ int main(int argc, char *argv[]){
 				strcpy(initialize_cmd, argv[arg_idx]);
 			}
 		}else if (strcmp(argv[arg_idx], "-?")==0){
-			printf("WS2812 Server program for Raspberry Pi V5.0\n");
+			printf("WS2812 Server program for Raspberry Pi V5.2\n");
 			printf("Command line options:\n");
 			printf("-p <pipename>       	creates a named pipe at location <pipename> where you can write command to.\n");
 			printf("-f <filename>       	read commands from <filename>\n");

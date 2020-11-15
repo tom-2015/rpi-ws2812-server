@@ -43,6 +43,25 @@ for (i=0;i<channel->count;i++) channel->leds[i].brightness=255;
 if (!channel->gamma)
 {
 
+//add extra paramter to the ws2811_render function: int32_t channel_number
+//add check for channel number in the for loop of ws2811_render() function:
+    for (chan = 0; chan < RPI_PWM_CHANNELS; chan++)         // Channel
+    {
+        if (channel_number == chan || channel_number == -1) {
+		//.... original for loop code here
+		}
+	}
+	
+//move the code to wait for ws2811 dma to complete (inside ws2811_render function) BEFORE the for loop that changes the raw pixel data:
+
+    // Wait for any previous DMA operation to complete.
+    if ((ret = ws2811_wait(ws2811)) != WS2811_SUCCESS)
+    {
+        return ret;
+    }
+//before:
+    for (chan = 0; chan < RPI_PWM_CHANNELS; chan++)         // Channel
+
 in readpng.c:readpng_get_image comment:
     //if (png_get_gAMA(png_ptr, info_ptr, &gamma))
     //    png_set_gamma(png_ptr, display_exponent, gamma);
