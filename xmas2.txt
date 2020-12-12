@@ -1,0 +1,200 @@
+setup 1,300,3,0,255,18
+init
+do
+  fill 1,FF0000;
+  brightness 1,0;
+  random_fade_in_out 1,60,50,10,15,800;
+
+  fill 1,FFFF00;
+  brightness 1,0;
+  random_fade_in_out 1,60,50,10,15,800;
+
+  fill 1,00FF00;
+  brightness 1,0;
+  random_fade_in_out 1,60,50,10,15,800;
+
+  fill 1,00FFFF;
+  brightness 1,0;
+  random_fade_in_out 1,60,50,10,15,800;
+
+  fill 1,0000FF;
+  brightness 1,0;
+  random_fade_in_out 1,60,50,10,15,800;
+
+  fill 1,FFFFFF;
+  brightness 1,0;
+  random_fade_in_out 1,60,50,10,15,800;
+
+  fade 1,32,0;
+
+  do
+     random 1;
+     rotate 1;
+     render;
+     delay 100;
+  loop 2500
+
+  fade 1,255,0;
+  render;
+ 
+
+  do
+    fill 1,FF0000; 
+    fade 1,0,255;
+    fade 1,255,0;
+
+    fill 1,FFFF00;
+    fade 1,0,255;
+    fade 1,255,0;
+
+    fill 1,00FF00;
+    fade 1,0,255;
+    fade 1,255,0;
+
+    fill 1,00FFFF;
+    fade 1,0,255;
+    fade 1,255,0;
+
+    fill 1,0000FF;
+    fade 1,0,255;
+    fade 1,255,0;
+
+    fill 1,FFFFFF;
+    fade 1,0,255;
+    fade 1,255,0;
+
+  loop 2
+
+
+  rainbow 1
+  fade 1,0,255;
+
+  do
+     rotate 1;
+     render;
+     delay 10;
+  loop 3000
+
+  fill 1,FF0000;
+  gradient 1,R,0,255;
+  render;
+
+  delay 5000
+
+  fill 1,00FF00;
+  gradient 1,G,0,255;
+  render;
+
+  fill 1,0000FF;
+  gradient 1,B,0,255;
+  render;
+
+  do
+    rotate 1,1,1,FF0000
+    rotate 1,1,1,00FF00
+    rotate 1,1,1,00FF00
+    rotate 1,1,1,00FF00
+  loop 75
+
+  render;
+
+  do
+    rotate 1
+    delay 1000
+    render;
+  loop 240
+
+  do
+    rotate 1,1,1,A0FF00
+    rotate 1,1,1,0000AA
+    rotate 1,1,1,0000AA
+    rotate 1,1,1,0000AA
+  loop 75
+
+  render
+
+  do
+     rotate 1
+     delay 1000
+     render
+  loop 120
+
+  do
+     rotate 1,8,1,FF0000
+     rotate 1,8,1,FFF000
+     rotate 1,8,1,00FF00
+     rotate 1,8,1,0000FF
+  loop 35
+
+  render;
+
+  do
+    rotate 1,4
+    delay 1000
+    render;
+  loop 120
+
+  fill 1,000000;
+
+  render;
+  chaser 1,120,FF0000,50
+
+#  do  
+#     fill 1,000000;
+#     render;
+#     delay 10
+#     fill 1,FFFFFF;
+#     render;
+#     delay 10  
+#  loop 500
+
+  gradient 1,R,0,255
+  render;
+  delay 2000;
+
+  gradient 1,G,0,255;
+  render;
+  delay 2000;
+
+  gradient 1,B,0,255;
+  render;
+  delay 2000;
+
+
+  do
+     color_change 1,0,255,20000;
+  loop 5
+
+
+  fill 1,FF0000;
+  fly_in 1;
+  fly_out 1,0;
+
+  fill 1,FF8000;
+  fly_in 1,0;
+  fly_out 1;
+
+  do
+     rotate 1,1,1,FF0000
+     rotate 1,9,1,000000
+     rotate 1,1,1,FF8000
+     rotate 1,9,1,000000
+     rotate 1,1,1,00FF00
+     rotate 1,9,1,000000
+     rotate 1,1,1,0000FF
+     rotate 1,9,1,000000
+  loop 10
+
+  render;
+
+  do
+     rotate 1,10;
+     delay 1000;
+     render;
+  loop 60
+
+
+  fill 1,000000;
+  brightness 1,0;
+  render;
+loop

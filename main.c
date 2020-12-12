@@ -100,7 +100,8 @@ char hextable[256] = {
 
 typedef struct {
     int do_pos;
-    int n_loops;
+    int n_loops; //number of loops made (index)
+	int add_to_index; //add this value to the current index variable
 } do_loop;
 
 
@@ -1004,9 +1005,13 @@ void start_loop (thread_context * context, char * args){
 	int i;
 	if (context->id>0 || context->execute_main_do_loop!=0){
         if (context->loop_index<MAX_LOOPS){
+			int start = 0; int add_to_index = 0;
+			args = read_int(args, &start);
+			args = read_int(args, &add_to_index);
             if (debug) printf ("do %d\n", context->thread_read_index);
             context->loops[context->loop_index].do_pos = context->thread_read_index-1;
-            context->loops[context->loop_index].n_loops=0;
+            context->loops[context->loop_index].n_loops=start;
+			context->loops[context->loop_index].add_to_index = add_to_index;
             context->loop_index++;
         }else{
             printf("Warning max nested loops reached in thread %d!\n", context->id);
@@ -1227,14 +1232,23 @@ void kill_thread(thread_context * context, char * args){
 	}
 }
 
+//sends a signal to a thread and optionaly waits for the thread to reach a <wait_signal> command to ensure 2 way synchronization
+//signal_thread <thread index>, <wait until thread is waiting for the signal>
 void signal_thread(thread_context * context, char * args){
 	int thread_index = 1;
-
+	int wait_for_thread = 0;
 	args = read_int(args, & thread_index);
+	args = read_int(args, & wait_for_thread);
+
 	if (thread_index > 0 && thread_index <= MAX_THREADS){
 		thread_context	* t_context = & threads[thread_index];
 		if (debug) printf("Sending signal to thread %d from %d.\n", thread_index, context->id);
+		while (wait_for_thread && !t_context->waiting_signal) usleep(1000); //if needed wait for the thread to reach the cond_wait
 		pthread_cond_signal (&t_context->sync_cond);
+		while (wait_for_thread && t_context->waiting_signal) { //if needed wait for the thread to have received the signal
+			usleep(1000);
+			pthread_cond_signal(&t_context->sync_cond);
+		}
 	}else{
 		fprintf(stderr, "Invalid thread id %d\n", thread_index);
 	}
@@ -1252,6 +1266,12 @@ void wait_signal(thread_context * context, char * args){
 	context->waiting_signal=0;
 	pthread_mutex_unlock (&context->sync_mutex);
 	if (debug) printf("Signal received in thread %d.\n", context->id);
+}
+
+//prints text on output, for debugging large scripts
+void echo(thread_context* context, char* args) {
+	write_to_output(args);
+	write_to_output("\n");
 }
 
 void str_replace(char * dst, char * src, char * find, char * replace){
@@ -1322,7 +1342,7 @@ void execute_command(thread_context * context, char * command_line){
 				strcpy(arg,raw_args);
 				for (i=0;i<context->loop_index;i++){
 					sprintf(find_loop_nr, "{%d}", i);
-					sprintf(replace_loop_index, "%d", context->loops[i].n_loops);
+					sprintf(replace_loop_index, "%d", context->loops[i].n_loops + context->loops[i].add_to_index);
 					str_replace(tmp_arg, arg, find_loop_nr, replace_loop_index); //cannot put result in same string we are replacing, store in temp buffer
 					strcpy(arg, tmp_arg);
 				}
@@ -1424,12 +1444,13 @@ void execute_command(thread_context * context, char * command_line){
 			printf("readpng <channel>,<file>,<BACKCOLOR>,<LED start>,<len>,<PNG Pixel offset>,<OR,AND,XOR,NOT,=>,<flip even rows 1/0>\n     BACKCOLOR=XXXXXX for color, PNG=USE PNG Back color (default), W=Use alpha for white leds in RGBW strips.\n");
 			#endif
             printf("settings\n");
-            printf("do ... loop\n");
+            printf("do <start_index>,<add_to_index> ... loop <end_index>,<increment_index>\n");
 			printf("thread_start <id>,<join_type> .... thread_stop\n");
 			printf("kill_thread <id>,<join_type>\n");
-			printf("signal_thread <id>\n");
+			printf("signal_thread <id>,<1=wait for thread to receive signal>\n");
 			printf("wait_signal\n");
 			printf("wait_thread\n");
+			printf("echo <text>\n");
 			printf("Inside a finite loop {x} will be replaced by the current loop index number. x stands for the loop number in case of multiple nested loops (default use 0).\n");
             printf("exit\n");
         }else if (strcmp(command, "save_state")==0){
@@ -1444,8 +1465,10 @@ void execute_command(thread_context * context, char * command_line){
 			kill_thread(context, arg);
 		}else if (strcmp(command, "wait_signal")==0){
 			wait_signal(context, arg);
-		}else if (strcmp(command, "signal_thread")==0){
+		}else if (strcmp(command, "signal_thread") == 0) {
 			signal_thread(context, arg);
+		}else if (strcmp(command, "echo")==0){
+			echo(context, arg);
 		}else if (strcmp(command, "debug") == 0) {
 			if (debug) debug = 0;
 			else debug = 1;

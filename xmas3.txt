@@ -1,0 +1,64 @@
+setup 1,300,3,0,255,18
+setup 2,200,5,0,255,19
+init
+
+thread_start 1
+ do
+	fill 1,FF0000; 
+    fade 1,0,255;
+    fade 1,255,0;
+
+    fill 1,FFFF00;
+    fade 1,0,255;
+    fade 1,255,0;
+
+    fill 1,00FF00;
+    fade 1,0,255;
+    fade 1,255,0;
+
+    fill 1,00FFFF;
+    fade 1,0,255;
+    fade 1,255,0;
+
+    fill 1,0000FF;
+    fade 1,0,255;
+    fade 1,255,0;
+
+    fill 1,FFFFFF;
+    fade 1,0,255;
+    fade 1,255,0;
+ loop
+thread_stop
+
+thread_start 2
+
+    do
+		fill 2,FF0000; 
+		fade 2,0,255;
+		fade 2,255,0;
+
+		fill 2,FFFF00;
+		fade 2,0,255;
+		fade 2,255,0;
+
+		fill 2,00FF00;
+		fade 2,0,255;
+		fade 2,255,0;
+
+		fill 2,00FFFF;
+		fade 2,0,255;
+		fade 2,255,0;
+
+		fill 2,0000FF;
+		fade 2,0,255;
+		fade 2,255,0;
+
+		fill 2,FFFFFF;
+		fade 2,0,255;
+		fade 2,255,0;
+	loop
+thread_stop
+
+do
+    delay 1000
+loop
