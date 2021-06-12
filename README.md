@@ -631,14 +631,9 @@ The render command will then paint all layers to the bottom layer / surface and 
 With this it's possible to for example load a PNG file as background and paint shapes or text on top of it, clear text and paint something else without having to redraw the entire PNG and shapes.
 
 
-
-
-```
-
 * `config_2D` configure 2D LED matrix (requires compile with ENABLE_2D=1)
 
 ```
-
 #NOTE: first call setup and init to configure a 1D led string with total LEDs in the 2D matrix.
 #NOTE: origin (x=0,y=0) is always the left top of the 2D matrix.
 
@@ -659,7 +654,6 @@ config_2D <channel>,<width>,<height>,<panel_type>,<panel_size_x>,<panel_size_y>,
 2 panels with LEDs configured as columns
 3 panels with individual vertical rows starting left top of each panel row but odd panel rows start from the right top.
 4 use the map_file which is a file having a line for each LED defining x,y=LED_INDEX
-
 ```
 
 * `init_layer` Initializes a new 2D graphics cairo layer or change layer settings
@@ -720,7 +714,6 @@ CAIRO_FILTER_BILINEAR = 4
 CAIRO_FILTER_FAST = 0
 CAIRO_FILTER_GOOD = 1
 CAIRO_FILTER_NEAREST = 3
-
 ```
 
 * `change_layer` changes the current layer 2D cairo graphics are painted to
@@ -730,7 +723,6 @@ change_layer <channel>,<layer_nr>
 
 # <channel>			Channel number
 # <layer_nr>		The layer number to use for the next 2D graphics commands
-
 ```
 
 * `draw_circle` Draws a circle or arc (cairo_arc) on the current selected layer
@@ -748,7 +740,6 @@ draw_circle <channel>,<x>,<y>,<radius>,<color>,<border_width>,<border_color>,<st
 # <start_angle>		Start angle in degrees (set to 0 for full circle)
 # <stop_angle>		Stop angle in degrees (set to 360 for full circle)
 # <negative>		Draw a negative arc (cairo_arc_negative)
-
 ```
 
 * `cls` Fills current layer with a color
@@ -756,7 +747,6 @@ draw_circle <channel>,<x>,<y>,<radius>,<color>,<border_width>,<border_color>,<st
 ```
 # <channel>			Channel number
 # <color>			Color to fill the current layer, default transparent except bottom layer: black
-
 ```
 
 * `draw_image` draws an image file
@@ -777,7 +767,6 @@ This will paint a JPG, PNG or (animated) GIF to the LED matrix.
 # <src_height> 		Source height, change together with src_width
 # <speed>			If the file is an animated gif, specify here a speed multiplier, for example 2 will play at twice the speed. default is 1
 # <max_loops>		for animated gif only Stop repeating the animation after max_loops, default 0 = inifite loops or loops defined in the GIF
-
 ```
 
 * `draw_line` draws an image file
@@ -793,8 +782,6 @@ Draws a cairo antialiased line from x1,y1 to x2,y2 and width pixels wide. All co
 # <y2>			End Y co. of the line
 # <width>		Width in pixels of the line can be decimal number
 # <color>		The line color, default is transparent
-
-
 ```
 
 * `draw_sharp_line` draws an image file
@@ -810,7 +797,6 @@ Draws a sharp line using Bresenham algorithm, all parameters must be integers. T
 # <y2>			End Y co. of the line
 # <width>		Width in pixels of the line can be decimal number
 # <color>		The line color, default is transparent
-
 ```
 
 * `draw_rectangle` draws and fills a rectangle
@@ -826,7 +812,6 @@ draw_rectangle <channel>,<x>,<y>,<width>,<height>,<color>,<border_width>,<border
 # <color>			Fill color of the rectangle
 # <border_width>	Border width (default 1)
 # <border_color>	Border color
-
 ```
 
 * `message_board` makes a scrolling message
@@ -859,7 +844,6 @@ MESSAGE_DIRECTION_TOP_BOTTOM = 3
 options:
 CAIRO_FONT_WEIGHT_BOLD: 1
 CAIRO_HINT_STYLE_NONE: 2
-
 ```
 
 * `print_text` prints text, uses cairo_show_text
@@ -880,7 +864,6 @@ print_text <channel>,<x>,<y>,<text>,<color>,<font_size>,<font_anti_alias>,<optio
 options:
 CAIRO_FONT_WEIGHT_BOLD: 1
 CAIRO_HINT_STYLE_NONE: 2
-
 ```
 
 * `text_input` prints scrolling text which is send to a TCP socket listening on port_nr
@@ -902,7 +885,6 @@ text_input <channel>,<x>,<y>,<width>,<height>,<port_nr>,<direction>,<text_color>
 # <font_anti_alias> Set antialiasing options, default is (1, CAIRO_ANTIALIAS_NONE) set to 2 to enable antialiasing
 # <options>			Sets options about the font, combination possible by using sum of options (set bits) see print_text
 # <font>			Font name or font file (.ttf) location, default monospace
-
 ```
 
 * `set_pixel_color` Sets a pixel to a color
@@ -915,3 +897,4 @@ pixel_color <channel>,<x>,<y>,<z>,<color>
 # <y>				Y location to fill
 # <z>				Z location to fill, a.t.m. Z is not supported
 # <color>			Color to set in the pixel
+```
