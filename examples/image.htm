@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css"/>
+		<title>WS2812 Server - Render image</title>
+	</head>
+<body>
+<p>
+You can render PNG,JPG and (animated) GIFs directly on your LED screen.
+Don't forget to compile with JPG support (default) on if you want to render JPG files.
+In this example an 8x8 display is used to first render a PNG and then render animated gif test.gif.
+</p>
+
+<div class="commands">
+<code>
+setup 1,64,3
+init
+brightness 1, 32
+config_2D 1,8,8,3,8,8
+draw_image 1,2D/test.png
+render
+draw_image 1,2D/test.gif
+</code>
+</div>
+
+<p>
+NOTE: use double quotes (") if your file name contains spaces or a , chatacter.<br/>
+draw_image 1,"path to file with spaces or ,"
+</p>
+
+<p><a href="index.htm">Back</a></p>
+</body>
+</html>

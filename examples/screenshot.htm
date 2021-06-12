@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css"/>
+		<title>WS2812 Server - 2D take screenshot</title>
+	</head>
+<body>
+<p>
+If 2D graphics are enabled you can take a screenshot of the Raspberry Pi desktop.<br/>
+In this example a screenshot of the Raspberry Pi start button is taken and rendered on 4 panels of 8x32 LEDs (total 32x32 display).
+</p>
+
+<div class="commands">
+<code>
+setup 1,1024,3
+init
+brightness 1,32
+config_2D 1,32,32,3,32,8
+take_screenshot 1,:0,0,0,8,4,32,32,32,32
+</code>
+</div>
+
+<p>
+NOTE: The ws2812svr executable must have access to the desktop (run from command window on the desktop, it cannot be executed from ssh in this case).
+</p>
+
+<p><a href="index.htm">Back</a></p>
+</body>
+</html>
+

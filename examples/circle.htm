@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css"/>
+		<title>WS2812 Server - Draw a circle</title>
+	</head>
+<body>
+<p>
+This shows how to draw a circle in the center with radius 2.5 pixels, filled with red and a blue border of 1 pixel.<br/>
+Connect a 8x8 LED panel to PWM0 output.
+</p>
+
+<div class="commands">
+<code>
+setup 1,64,3
+init
+brightness 1,32
+config_2D 1,8,8,3,8,8
+draw_circle 1,3.5,3.5,2.5,FF0000,1,0000FF
+render
+</code>
+</div>
+
+<p><a href="index.htm">Back</a></p>
+</body>
+</html>

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css"/>
+		<title>WS2812 Server - Draw a line</title>
+	</head>
+<body>
+<p>
+In this example we will draw 2 lines of 32 pixels on an 8x32 display.<br/>
+There are 2 commands to draw lines:<br/>
+<ul>
+<li>draw_line: draws a line with cairo library, with anti aliasing. This may not produce sharp 1 pixel lines, <a href="https://www.cairographics.org/FAQ/#sharp_lines">read more</a></li>
+<li>draw_sharp_line: draws a line with Bresenham algorithm, no anti aliasing</li>
+</ul>
+</p>
+
+<div class="commands">
+<code>
+setup 1,256,3
+init
+brightness 1,32
+config_2D 1,32,8,3,32,8
+draw_line 1,0,0.5,31.5,0.5,1,FF0000
+draw_sharp_line 1,0,6,31,6,1,00FF00
+render
+</code>
+</div>
+
+<p>
+NOTE: draw_sharp_line doesn't support alpha transparency and all parameters must be integers.
+</p>
+
+<p><a href="index.htm">Back</a></p>
+</body>
+</html>

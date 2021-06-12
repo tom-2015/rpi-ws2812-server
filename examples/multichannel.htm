@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css"/>
+		<title>WS2812 Server - rotating colors</title>
+	</head>
+<body>
+<p>
+Add a LED string of 300 LEDs WS2812 chip on PWM0 (GPIO 12) output of the Raspberry Pi.<br/>
+Add a LED string of 50 LEDs WS2812 on PWM1 (GPIO 13) output.<br/>
+Add a LED string of 30 SK9822 to SPI 1 interface MOSI and CLK.<br/>
+Execute these commads to fill first string with RED, second with GREEN and third blue.
+</p>
+
+<div class="commands">
+setup 1,300,3
+setup 2,50,3,0,255,19
+setup 3,30,12
+init
+fill 1,FF0000
+fill 2,00FF00
+fill 3,0000FF
+render 1
+render 2
+render 3
+</div>
+
+<p>Use CTRL+C key to stop the rotating and return to command line.</p>
+
+<p><a href="index.htm">Back</a></p>
+</body>
+</html>

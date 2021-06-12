@@ -132,10 +132,10 @@ thread_start 1
 	delay 5000;
     fade 1,255,0;
 
-	fill 2,8800FF;
-    fade 2,0,255;
+	fill 1,8800FF;
+    fade 1,0,255;
 	delay 5000;
-    fade 2,255,0;
+    fade 1,255,0;
 
     fill 1,FFFFFF;
     fade 1,0,255;

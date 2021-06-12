@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css"/>
+		<title>WS2812 Server - rotating colors</title>
+	</head>
+<body>
+<p>
+Add a LED string of 10 LEDs with WS2812 chip on PWM0 (GPIO 12) output of the Raspberry Pi.<br/>
+Execute these commads to create RED - YELLOW - GREEN - BLUE rotating effect.
+</p>
+
+<div class="commands">
+setup 1,10,5
+init
+#first set the led colors
+do
+	rotate 1,2,1,FF0000
+	rotate 1,2,1,FFFF00
+	rotate 1,2,1,00FF00
+	rotate 1,2,1,0000FF
+loop 3
+
+render 1
+
+#now make them rotate
+do
+	rotate 1,2
+	delay 1000
+	render 1
+loop
+</div>
+
+<p>Use CTRL+C key to stop the rotating and return to command line.</p>
+
+<p><a href="index.htm">Back</a></p>
+</body>
+</html>

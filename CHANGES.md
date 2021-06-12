@@ -1,3 +1,7 @@
+# Version 6.0
+* Added support for 2D graphics
+* Added virtual channels
+
 # Version 5.0
 * Fix flickering when using multiple threads and 2xws2811 led strings
 

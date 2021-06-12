@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css"/>
+		<title>WS2812 Server - TCP socket scrolling text</title>
+	</head>
+<body>
+<p>
+This example creates a TCP socket listening on port 9000, text send to this socket will be displayed as a scrolling text message board.<br/>
+Requires a 32x8 pixel LED board.
+</p>
+
+<div class="commands">
+<code>
+setup 1,256,3
+init
+debug 1
+brightness 1, 32
+config_2D 1,32,8,3,32,8
+text_input 1,0,8,32,8,9000,0,FF0000,000000,50,8,1,0,"enhanced_led_board-7.ttf"
+
+</code>
+</div>
+
+Now use the netcat (sudo apt-get install netcat) command to connect to port 9000 and send the text you want to appear scrolling on the display.
+
+<div class="commands">
+<code>
+nc localhost 9000
+HELLO WORLD
+</code>
+</div>
+
+<p>
+Replace localhost by the IP of your Raspberry if you want to connect remotely.<br/>
+Currently only ASCI characters are supported UTF-8 may produce unwanted effects.
+</p>
+
+
+<p><a href="index.htm">Back</a></p>
+</body>
+</html>

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css"/>
+		<title>WS2812 Server - Draw a rectangle</title>
+	</head>
+<body>
+<p>
+This command paints a rectangle of 4x4 with fill color green and no border.<br/>
+Connect a 8x8 LED panel to PWM0 output.
+</p>
+
+<div class="commands">
+<code>
+setup 1,64,3
+init
+brightness 1,32
+config_2D 1,8,8,3,8,8
+draw_rectangle 1,2,2,4,4,00FF00,0
+render
+</code>
+</div>
+
+<p><a href="index.htm">Back</a></p>
+</body>
+</html>

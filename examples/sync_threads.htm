@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css"/>
+		<title>WS2812 Server - synchronizing threads</title>
+	</head>
+<body>
+<p>
+In case you have 2 LED strings and you want both LED strings to execute some effects but they should start / end at the same time. You can do this with threads and at some point synchronize them. <br/>
+Add a LED string of 256 LEDs WS2812 chip on PWM0 (GPIO 12) output of the Raspberry Pi.<br/>
+Add a LED string of 64 LEDs WS2812 on PWM1 (GPIO 13) output.<br/>
+The following commands will fade both LED strings in / out at the same time.
+</p>
+
+<div class="commands">
+<code>
+setup 1,256,3
+setup 2,64,3,0,255,19
+init
+brightness 1, 32
+brightness 2, 32
+fill 1,00FF00
+fill 2,0000FF
+
+thread_start 1
+do
+   fade 1,0,32,100
+   wait_signal
+   fade 1,32,0,100
+   wait_signal
+loop
+thread_stop
+
+thread_start 2
+do
+   fade 2,0,32,100
+   signal_thread 1,1
+   fade 2,32,0,100
+   signal_thread 1,1
+loop
+thread_stop
+</code>
+</div>
+
+<p>
+The wait_signal in thread 1 will wait until it receives a signal to continue. This signal comes from thread 2 with the signal_thread 1,1 command.
+</p>
+
+
+<p><a href="index.htm">Back</a></p>
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css"/>
+		<title>WS2812 Server - setting up 2D</title>
+	</head>
+<body>
+<p>
+Connect a 2D panel with WS2812 LEDs to your Raspberry pi. It's possible to chain many panels together and create a large display.<br/>
+First you need to do a normal setup with total LEDs in all connected panels.<br/>
+The config_2D command will create a conversion table in the background taking the x and y location and convert it to LED position in the normal 1D string.
+There are 4 supported LED configurations and a 5th type which allows you to create your own conversion table in a text file.<br/>
+At this moment the first pixel (0,0) must always be at the left top of the screen.
+
+<ul>
+<li>Panel type 0:<br/>
+	Row by row and the end of each row is connected to the beginning of the next row.<br/>
+	<img src="panel_type_0.png"/>
+</li>
+<li>Panel type 1:<br/>
+	Row by row but even rows are connected left to right and odd rows right to left.<br/>
+	<img src="panel_type_1.png"/>
+</li>
+<li>Panel type 2:<br/>
+	Panels with LEDs configured as columns.<br/>
+	<img src="panel_type_2.png"/>
+</li>
+<li>Panel type 3:<br/>
+	Panels with LEDs configured as columns but odd panel rows are rotated 180°.<br/>
+	<img src="panel_type_3.png"/>
+</li>
+<li>Panel type 4:<br/>
+	Custom pixel locations defined in a text file. This text file looks like:<br/>
+	<div class="commands">
+<code>
+x,y=index
+0,0=3
+1,0=4
+2,0=5
+3,0=10
+4,0=11
+5,0=6
+</code>
+	</div>
+	Here x and y is the pixel coordinates and index is the location of the LED at x,y in the 1D string. (Do not include x,y=index in the file.)
+</li>
+</ul>
+</p>
+
+<p>The following commands configure a 32x16 pixel display with 2 32x8 pixel displays.</p>
+
+<div class="commands">
+<code>
+setup 1,512,3
+init
+brightness 1,32
+config_2D 1,32,16,3,32,8
+</code>
+</div>
+
+<p>
+NOTE: You need to compile with ENABLE_2D=1 for 2D commands to work. This also requires additional libraries to be installed.<br/>
+If you forgot type:
+</p>
+
+<div class="commands">
+<code>
+make clean
+make ENABLE_2D=1
+</code>
+</div>
+
+<p><a href="index.htm">Back</a></p>
+</body>
+</html>

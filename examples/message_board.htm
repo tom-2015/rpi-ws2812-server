@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css"/>
+		<title>WS2812 Server - message board</title>
+	</head>
+<body>
+<p>
+This command makes green text message scroll.<br/>
+Connect a 8x32 LED panel to PWM0 output.
+</p>
+
+<div class="commands">
+<code>
+setup 1,256,3
+init
+brightness 1,32
+config_2D 1,32,8,3,32,8
+init_layer 1,0,1,0,1,0
+message_board 1,0,8,32,8,0,00FF00,000000,50,0,"HELLO WORLD",8,,0,"enhanced_led_board-7.ttf"
+</code>
+</div>
+
+<p>
+<b>NOTE:</b> Put double quotes around your text, use \" if you need a double quote in your text. For special characters use UTF-8 encoding and a font that supports them.
+</p>
+
+<p><a href="index.htm">Back</a></p>
+</body>
+</html>

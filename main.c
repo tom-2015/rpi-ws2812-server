@@ -16,8 +16,20 @@
 #include <ctype.h>
 #include <errno.h>
 #include <stdbool.h>
+#include <math.h> 
+#include "gifdec.h"
 #include "ws2811.h"
 #include "sk9822.h"
+
+//#define USE_2D
+
+//enables 2D and cairo graphics
+#ifdef USE_2D
+	#include <cairo.h>
+	#include <cairo-ft.h>
+	#include <ft2build.h>
+#endif 
+
 
 #define DEFAULT_DEVICE_FILE "/dev/ws281x"
 #define DEFAULT_COMMAND_LINE_SIZE 1024
@@ -35,10 +47,16 @@
 #define MODE_TCP 3
 
 #define ERROR_INVALID_CHANNEL "Invalid channel number, did you call setup and init?\n"
+#define ERROR_INVALID_2D_CHANNEL "Invalid channel number, did you call setup and init?\n"
 
 #define CHANNEL_TYPE_NONE 0
 #define CHANNEL_TYPE_WS2811 1
 #define CHANNEL_TYPE_SK9822 2
+#define CHANNEL_TYPE_VIRTUAL 99
+
+#define DEFAULT_FONT "monospace"
+
+#define COLOR_TRANSPARENT 0xFF000000
 
 //USE_JPEG and USE_PNG is enabled through make file
 //to disable compilation of PNG / or JPEG use:
@@ -88,15 +106,6 @@ char hextable[256] = {
    ['A'] = 10, 11, 12, 13, 14, 15,       // for the space conscious, reduce to
    ['a'] = 10, 11, 12, 13, 14, 15        // signed char.
 };
-
-/*void init_hextable(){
-    unsigned int i;
-    for(i=0;i<256;i++){
-        if (i >= '0' && i<= '9') hextable[i]=i-'0';
-        if (i >= 'a' && i<= 'f') hextable[i]=i-'a'+10;
-        if (i >= 'A' && i<= 'F') hextable[i]=i-'A'+10;
-    }
-}*/
 
 typedef struct {
     int do_pos;
@@ -148,16 +157,67 @@ typedef struct {
 	int		  do_count;					//only used for do ... loop in main thread/file
 	int       loop_count;
 	int		  execute_main_do_loop;	    //if 1 the start_loop will execute the do command instead of start writing to internal buffer, only in case of the main thread
+
+#ifdef USE_2D
+	FT_Library ft_lib;			//needed for .ttf font files in cairo, doc says 1 instance per trhead
+	bool ft_init;
+#endif
+
 } thread_context;
 
 thread_context threads[MAX_THREADS+1];
 
+#ifdef USE_2D
+
+typedef struct {
+	cairo_surface_t* surface;
+	cairo_t* cr;
+	cairo_operator_t op; //https://www.cairographics.org/operators/
+	int x;
+	int y;
+	int type;
+} cairo_layer;
+
+#define CAIRO_MAX_LAYERS 16
+#define LAYER_TYPE_NORMAL 0
+#define LAYER_TYPE_CLIP 1
+#endif
+
+typedef struct {
+	int color_size;//number of color bytes for 1 led, 3 = BGR and 4 = WBGR
+	int count;
+	int parent_offset;//offset in the parent channel
+	int parent_channel_index;//the parent channel (in case of a virtual channel which affects a part of a main channel)
+} virtual_channel_t;
+
+
 typedef struct {
 	int channel_type;  //defines if this channel is WS2811 or SK9822
 	int channel_index; //the channel number in the *_ledstring, at initialization the channel objects are set
+	int color_size;		
+	int led_count;     //led count
 	bool initialized;  //true if initialized
 	ws2811_channel_t* ws2811_channel;
 	sk9822_channel_t* sk9822_channel;
+	virtual_channel_t* virtual_channel;
+	ws2811_led_t* ledstring_1D; //returns 1D led string
+
+#ifdef USE_2D
+	int width;
+	int height;
+	ws2811_led_t*** ledstring_2D; //2D mapped led string ledstring[y][x] returns a pointer to a ws2811_led_t which is the led in the led_string_1D at that location
+
+	unsigned char* surface_data; //binary pixel data 0RGB
+	int surface_stride;			 //row size in bytes for each line
+	int pixel_stride;			 //number of pixels for each line, = surface_stride / sizeof(int)
+	cairo_surface_t* surface;    //painting surface
+	cairo_t* cr;			     //current cairo render object, initial this is the main_cr but it can be set to one of the layer cr, all painting functions operate on this cr
+	cairo_t* main_cr;			 //cairo main render object
+
+	cairo_surface_t* source_surface;	 //the source surface, can be a loaded PNG, if NULL the source_surface is not used
+	cairo_layer layers[CAIRO_MAX_LAYERS]; //layers which are painted first with their operator, only on some functions
+
+#endif
 } channel_info;
 
 ws2811_t ws2811_ledstring; //led string object for WS2811 and compatible chips (DATA ONLY)
@@ -166,6 +226,10 @@ channel_info led_channels[MAX_CHANNELS];
 pthread_mutex_t ws2812_render_mutex;
 
 void process_character(thread_context * context, char c);
+
+bool file_exists(const char* fname) {
+	return access(fname, F_OK) == 0;
+}
 
 //handles exit of program with CTRL+C
 static void ctrl_c_handler(int signum){
@@ -227,45 +291,146 @@ int get_free_channel_index(int type) {
 
 //returns the number of leds in channel_nr
 int get_led_count(int channel_nr) {
-	switch (led_channels[channel_nr].channel_type) {
-	case CHANNEL_TYPE_WS2811:
-		return led_channels[channel_nr].ws2811_channel->count;
-		break;
-	case CHANNEL_TYPE_SK9822:
-		return led_channels[channel_nr].sk9822_channel->count;
-		break;
-	}
+	return led_channels[channel_nr].led_count;
 }
 
 //returns number of colors for each LED in a channel
 int get_color_size(int channel_nr) {
-	switch (led_channels[channel_nr].channel_type) {
-	case CHANNEL_TYPE_WS2811:
-		return led_channels[channel_nr].ws2811_channel->color_size;
-		break;
-	case CHANNEL_TYPE_SK9822:
-		return led_channels[channel_nr].sk9822_channel->color_size;
-		break;
-	}
-
+	return led_channels[channel_nr].color_size;
 }
 
 //returns led string as led type array, for direct access to leds
 ws2811_led_t* get_led_string(int channel_nr) {
-	switch (led_channels[channel_nr].channel_type) {
-	case CHANNEL_TYPE_WS2811:
-		return led_channels[channel_nr].ws2811_channel->leds;
-		break;
-	case CHANNEL_TYPE_SK9822:
-		return (ws2811_led_t*)led_channels[channel_nr].sk9822_channel->leds;
-		break;
-	}
-	return NULL;
+	return led_channels[channel_nr].ledstring_1D;
 }
+
+
+#ifdef USE_2D
+
+//returns true if freetype library is initialized
+bool init_ft_lib(thread_context* context) {
+	if (context->ft_init == false) {
+		FT_Error status;
+
+		status = FT_Init_FreeType(& context->ft_lib);
+		if (status != 0) {
+			fprintf(stderr, "Error %d opening freetype library.\n", status);
+			return false;
+		} else {
+			context->ft_init = true;
+		}
+		
+	}
+	return context->ft_init;
+}
+
+
+unsigned int convert_cairo_color(unsigned int color);
+
+ws2811_led_t*** get_2D_led_string(int channel_nr) {
+	return led_channels[channel_nr].ledstring_2D;
+}
+
+//updates the cairo buffer after changes have been made with 1D functions
+//paints what's in the actual led buffers
+void cairo_update_buffer(int channel) {
+
+	if (led_channels[channel].surface != NULL) { //if channel 2D surface is not NULL we must update buffer first
+		cairo_surface_flush(led_channels[channel].surface);
+		unsigned int* pixels = (unsigned int*)cairo_image_surface_get_data(led_channels[channel].surface); //get pointer to pixel data
+		ws2811_led_t*** led_string_2D = get_2D_led_string(channel);
+
+		int width = led_channels[channel].width;
+		int height = led_channels[channel].height;
+		unsigned int stride = (unsigned int)led_channels[channel].pixel_stride;
+		for (unsigned int y = 0;y < led_channels[channel].height;y++) { //update all pixels at the corresponding led
+			unsigned int* pixel_row = &pixels[y * stride];
+			for (unsigned int x = 0;x < led_channels[channel].width;x++) {
+				if (led_string_2D[y][x]) *pixel_row = convert_cairo_color( led_string_2D[y][x]->color);
+				pixel_row++;
+			}
+		}
+		cairo_surface_mark_dirty(led_channels[channel].surface);
+	}
+}
+
+//paints all the layer surfaces to the main channel surface
+//layer 0 is the bottom
+//https://cpp.hotexamples.com/examples/-/-/cairo_set_source_surface/cpp-cairo_set_source_surface-function-examples.html
+void cairo_paint_layers(channel_info* chan) {
+
+	cairo_save(chan->main_cr);
+	cairo_identity_matrix(chan->main_cr);
+	for (int i = 0;i < CAIRO_MAX_LAYERS;i++) {
+		if (chan->layers[i].surface != NULL) {
+			cairo_set_source_surface(chan->main_cr, chan->layers[i].surface, chan->layers[i].x, chan->layers[i].y);
+			//if (chan->layers[i].type == LAYER_TYPE_CLIP) {
+			//	cairo_clip(chan->main_cr); //does not work
+			//	cairo_paint(chan->main_cr);
+			//} else {
+				cairo_set_operator(chan->main_cr, chan->layers[i].op);
+				cairo_rectangle(chan->main_cr, 0, 0, chan->width, chan->height);
+				cairo_fill(chan->main_cr);
+			//}
+		}
+	}
+	cairo_restore(chan->main_cr);
+}
+
+//resets all layers
+void cairo_reset_layers(channel_info* chan) {
+	for (int i = 0; i < CAIRO_MAX_LAYERS;i++) {
+		if (chan->layers[i].surface != NULL) {
+			cairo_surface_destroy(chan->layers[i].surface);
+			chan->layers[i].surface = NULL;
+		}
+		if (chan->layers[i].cr != NULL) {
+			cairo_destroy(chan->layers[i].cr);
+			chan->layers[i].cr = NULL;
+		}
+		chan->layers[i].op = CAIRO_OPERATOR_OVER;
+		chan->layers[i].type = LAYER_TYPE_NORMAL;
+	}
+}
+
+//converts x and y to create sharp lines in strokes
+//https://www.cairographics.org/FAQ/#sharp_lines.
+void cairo_stroke_rounding(double width, double * x1, double * y1) {
+	if (((int)width % 2) != 0) {
+		*x1 = *x1 + 0.5;
+		*y1 = *y1 + 0.5;
+	}
+}
+
+#endif
 
 //renders a channel
 void render_channel(int channel) {
-	
+
+#ifdef USE_2D
+
+	if (led_channels[channel].surface != NULL) { //if channel 2D surface is not NULL we must update buffer first
+		cairo_paint_layers(&led_channels[channel]);
+
+		cairo_surface_flush(led_channels[channel].surface);
+		unsigned int * pixels = (unsigned int *)cairo_image_surface_get_data(led_channels[channel].surface); //get pointer to pixel data
+		ws2811_led_t*** led_string_2D = get_2D_led_string(channel);
+
+		int width = led_channels[channel].width;
+		int height = led_channels[channel].height;
+		unsigned int stride = (unsigned int)led_channels[channel].pixel_stride;
+		for (unsigned int y = 0;y < led_channels[channel].height;y++) { //update all pixels at the corresponding led
+			unsigned int * pixel_row = & pixels[y * stride];
+			for (unsigned int x = 0;x < led_channels[channel].width;x++) {
+				if (led_string_2D[y][x]) {
+					led_string_2D[y][x]->color = convert_cairo_color(*pixel_row); // ((led_color << 16) | (led_color >> 16) | (led_color & 0xFF00)) & 0xFFFFFF; 
+				}
+				pixel_row++;
+			}
+		}
+	}
+#endif
+
 	switch (led_channels[channel].channel_type) {
 	case CHANNEL_TYPE_SK9822:
 		;
@@ -282,12 +447,25 @@ void render_channel(int channel) {
 			fprintf(stderr, "ws2811 render failed on channel %d: %s\n", channel, ws2811_get_return_t_str(ws8211_res));
 		}
 		break;
+	case CHANNEL_TYPE_VIRTUAL:
+		if (led_channels[channel].virtual_channel->parent_channel_index !=-1) {
+			render_channel(led_channels[channel].virtual_channel->parent_channel_index);
+		}
+		break;
 	}
 }
 
 //returns if channel is a valid led_string index number
 int is_valid_channel_number(unsigned int channel) {
 	return (channel >= 0) && (channel < MAX_CHANNELS) && led_channels[channel].channel_type!=CHANNEL_TYPE_NONE && led_channels[channel].initialized; 
+}
+
+int is_valid_2D_channel_number(unsigned int channel) {
+#ifdef USE_2D
+	return is_valid_channel_number(channel) && led_channels[channel].surface != NULL;
+#else
+	return 0;
+#endif
 }
 
 //writes text to the output depending on the mode (TCP=write to socket)
@@ -335,6 +513,37 @@ int color (unsigned char r, unsigned char g, unsigned char b){
 	return (b << 16) + (g << 8) + r;
 }
 
+#ifdef USE_2D
+//converts cairo pixel to internal LED color OR internal LED color to cairo pixel color
+//cairo has different color mapping :( ARGB, led color has ABGR. here we don't use the A
+inline unsigned int convert_cairo_color(unsigned int color) {
+	return ((((color << 16) | (color >> 16) & 0xFF00FF) | (color & 0xFF00)) & 0xFFFFFF) | 0xFF000000;
+}
+
+//converts cairo pixel to internal LED color OR internal LED color to cairo pixel color
+//cairo has different color mapping :( ARGB, led color has ABGR.
+inline unsigned int convert_cairo_color_rgba(unsigned int color) {
+	return (((color << 16) | (color >> 16) & 0xFF00FF) | (color & 0xFF00)) & 0xFFFFFF | (color & 0xFF000000);
+}
+
+//sets cairo_source_rgb using internal color GBR
+void set_cairo_color_rgb(cairo_t * cr, unsigned int color) {
+	unsigned int r, g, b;
+	r = color & 0xFF;
+	g = (color >> 8) & 0xFF;
+	b = (color >> 16) & 0xFF;
+	cairo_set_source_rgb(cr, ((double)r) / 255.0, ((double)g) / 255.0, ((double)b) / 255.0);
+}
+
+void set_cairo_color_rgba(cairo_t* cr, unsigned int color) {
+	unsigned int r, g, b, a;
+	r = color & 0xFF;
+	g = (color >> 8) & 0xFF;
+	b = (color >> 16) & 0xFF;
+	a = 255-(color >> 24) & 0xFF;
+	cairo_set_source_rgba(cr, ((double)r) / 255.0, ((double)g) / 255.0, ((double)b) / 255.0, ((double)a) / 255.0);
+}
+#endif
 //returns new colorcomponent based on alpha number for component1 and background component
 //all values are unsigned char 0-255
 unsigned char alpha_component(unsigned int component, unsigned int bgcomponent, unsigned int alpha){
@@ -383,15 +592,57 @@ char * read_key(char * args, char * key, size_t size){
 
 //read value from command argument buffer (see read_key)
 char * read_val(char * args, char * value, size_t size){
+	bool in_str = false;
+	bool escaped = false;
 	if (args!=NULL && *args!=0){
 		size--;
 		if (*args==',') args++;
-		while (*args!=0 && *args!=','){
-			if (*args!=' ' && *args!='\t'){ //skip space
-				*value=*args;
-				value++;
-				size--;
-				if (size==0) break;
+		while (*args!=0 && (*args!=',' || in_str)){
+			if (in_str) { //in string, \ acts as an escape character
+				if (escaped) { //tells the current character is an escaped character
+					if (size > 0) {
+						switch (*args) {
+						case '"':
+							*value = '"';
+							break;
+						case '\\':
+							*value = '\\';
+							break;
+						case 't':
+							*value = '\t';
+							break;
+						case 'n':
+							*value = '\n';
+							break;
+						default:
+							*value = *args;
+						}
+						value++;
+						size--;
+					}
+					escaped = false;
+				} else {
+					if (*args == '\\') { //next character is escaped
+						escaped = true;
+					} else if (*args == '"'){ //end of quoted string
+						in_str = false;
+					} else if (size > 0) { //add character
+						*value = *args;
+						value++;
+						size--;
+					}
+				}
+			} else {
+				if (*args != ' ' && *args != '\t') { //skip space
+					if (*args == '"') { //start of string, skip character
+						in_str = true;
+						escaped = false;
+					} else if (size > 0) { //add normal character
+						*value = *args;
+						value++;
+						size--;
+					}
+				}
 			}
 			args++;
 		}
@@ -413,6 +664,15 @@ char * read_int(char * args, int * value){
 char * read_float(char * args, float * value){
 	char svalue[MAX_VAL_LEN];
 	if (args!=NULL && *args!=0){
+		args = read_val(args, svalue, MAX_VAL_LEN);
+		if (svalue[0]) *value = atof(svalue);
+	}
+	return args;
+}
+
+char* read_double(char* args, double* value) {
+	char svalue[MAX_VAL_LEN];
+	if (args != NULL && *args != 0) {
 		args = read_val(args, svalue, MAX_VAL_LEN);
 		if (svalue[0]) *value = atof(svalue);
 	}
@@ -444,6 +704,7 @@ char * read_channel(char * args, int * value){
 }
 
 //reads color from string, returns string + 6 or 8 characters
+//!! args must be hex format only: XXXXXX, USE read_color_arg to read from command line!
 //color_size = 3 (RGB format)  or 4 (RGBW format)
 char * read_color(char * args, unsigned int * out_color, unsigned int color_size){
     unsigned char r,g,b,w;
@@ -476,6 +737,18 @@ char * read_color_arg(char * args, unsigned int * out_color, unsigned int color_
 	char value[MAX_VAL_LEN];
 	args = read_val(args, value, MAX_VAL_LEN);
 	if (*value!=0) read_color(value, out_color, color_size);
+	return args;
+}
+
+char* read_color_arg_empty(char* args, unsigned int* out_color, unsigned int color_size, bool * arg_empty) {
+	char value[MAX_VAL_LEN];
+	args = read_val(args, value, MAX_VAL_LEN);
+	if (*value != 0) {
+		read_color(value, out_color, color_size);
+		*arg_empty = false;
+	} else {
+		*arg_empty = true;
+	}
 	return args;
 }
 
@@ -552,7 +825,7 @@ void write_thread_buffer (thread_context * context, char c){
 //depending on channel chip type it will initialize the proper hardware for all channels
 //init <frequency>,<DMA>
 void init_channels(thread_context* context, char* args) {
-	int i;
+	int i, parent_index;
 	char value[MAX_VAL_LEN];
 	int frequency = WS2811_TARGET_FREQ, dma = 10;
 
@@ -605,20 +878,59 @@ void init_channels(thread_context* context, char* args) {
 
 	//assign the initialized channels to the global channel array depending on type
 	for (i = 0;i < MAX_CHANNELS; i++) {
+		led_channels[i].ledstring_1D = NULL;
+
+#ifdef USE_2D
+		led_channels[i].width = 0;
+		led_channels[i].height = 0;
+		if (led_channels[i].ledstring_2D != NULL) {
+			for (int k = 0;k < led_channels[i].height;k++) {
+				free(led_channels[i].ledstring_2D[k]);
+			}
+			free(led_channels[i].ledstring_2D);
+		}
+
+		/*for (int k = 0;k < CAIRO_MAX_LAYERS;k++) {
+			if (led_channels[i].layers[k].cr != NULL) cairo_destroy(led_channels[i].layers[k].cr);
+			if (led_channels[i].layers[k].surface != NULL) cairo_surface_destroy(led_channels[i].layers[k].surface);
+			led_channels[i].layers[k].x = 0;
+			led_channels[i].layers[k].y = 0;
+		}*/
+
+		if (led_channels[i].main_cr !=NULL) cairo_destroy(led_channels[i].main_cr);
+		if (led_channels[i].surface != NULL) cairo_surface_destroy(led_channels[i].surface);
+		if (led_channels[i].surface_data != NULL) free(led_channels[i].surface_data);
+#endif 
+
 		if (led_channels[i].channel_type != CHANNEL_TYPE_NONE) {
 			switch (led_channels[i].channel_type) {
 			case CHANNEL_TYPE_WS2811:
 				led_channels[i].initialized = ws2811_ret == WS2811_SUCCESS;
 				led_channels[i].ws2811_channel = &ws2811_ledstring.channel[led_channels[i].channel_index];
-				if (debug) printf("Init WS2811 for channel: %d, res=%d\n", i, led_channels[i].initialized ? 1 : 0);
+				led_channels[i].ledstring_1D = led_channels[i].ws2811_channel->leds;
+				if (debug) printf("Init WS2811 for channel: %d, res=%d.\n", i, led_channels[i].initialized ? 1 : 0);
 				break;
 			case CHANNEL_TYPE_SK9822:
 				led_channels[i].initialized = sk9822_ret == SK9822_SUCCESS;
 				led_channels[i].sk9822_channel = &sk9822_ledstring.channels[led_channels[i].channel_index];
-				if (debug) printf("Init SK9822 for channel: %d, res=%d\n", i, led_channels[i].initialized ? 1 : 0);
+				led_channels[i].ledstring_1D = (ws2811_led_t*)led_channels[i].sk9822_channel->leds;
+				if (debug) printf("Init SK9822 for channel: %d, res=%d.\n", i, led_channels[i].initialized ? 1 : 0);
+				break;
+			case CHANNEL_TYPE_VIRTUAL:
+				parent_index = led_channels[i].virtual_channel->parent_channel_index;
+				led_channels[i].initialized = led_channels[parent_index].initialized;
+				led_channels[i].ledstring_1D = get_led_string(parent_index) + led_channels[i].virtual_channel->parent_offset;
+
+				if (debug) printf("Init virtual channel: %d, parent channel %d, offset %d.\n", i, parent_index, led_channels[i].virtual_channel->parent_offset);
 				break;
 			}
-
+#ifdef USE_2D
+			led_channels[i].ledstring_2D = NULL;
+			led_channels[i].surface = NULL;
+			led_channels[i].surface_data = NULL;
+			led_channels[i].cr = NULL;
+			led_channels[i].main_cr = NULL;
+#endif
 			//initialize the default brightness of each led
 			ws2811_led_t* leds = get_led_string(i);
 			if (leds != NULL) {
@@ -630,6 +942,185 @@ void init_channels(thread_context* context, char* args) {
 		}
 	}
 }
+
+#ifdef USE_2D
+//initialize 2D channel
+//config_2D <channel>,<width>,<height>,<panel_type>,<panel_size_x>,<panel_size_y>,<start_led>,<map_file>
+void config_2D(thread_context* context, char* args) {
+	int channel = 0;
+	int width = 0, height = 0, panel_type = 0, panel_size_x = 0, panel_size_y = 0, len=0, start_led=0;
+	char filename[MAX_VAL_LEN];
+
+	if (is_valid_channel_number(channel)) {
+		len = get_led_count(channel);
+	}
+
+	args = read_channel(args, &channel);
+	args = read_int(args, &width);
+	args = read_int(args, &height);
+	args = read_int(args, &panel_type);
+	args = read_int(args, &panel_size_x);
+	args = read_int(args, &panel_size_y);
+	args = read_int(args, &start_led);
+	args = read_str(args, filename, sizeof(filename));
+
+	if (is_valid_channel_number(channel)) {
+		len = get_led_count(channel);
+
+		if (len < width * height + start_led) {
+			fprintf(stderr, "Error: width * height + start_led must be at least the length of the led string.\n");
+			return;
+		}
+
+		if (panel_size_x == 0) panel_size_x = width;
+		if (panel_size_y == 0) panel_size_y = height;
+
+		if ((width % panel_size_x) != 0) {
+			fprintf(stderr, "Error: width must be a multiple of panel_size_x.\n");
+			return;
+		}
+
+		if ((height % panel_size_y) != 0) {
+			fprintf(stderr, "Error: height must be multiple of panel_size_y.\n");
+			return;
+		}
+
+		int panels_x = width / panel_size_x;
+		int panels_y = height / panel_size_y;
+
+		channel_info* led_channel = &led_channels[channel];
+		ws2811_led_t*** ledstring_2D;
+		ws2811_led_t* ledstring_1D;
+
+		if (led_channel->ledstring_2D != NULL) {
+			for (int k = 0;k < led_channel->height;k++) {
+				free(led_channel->ledstring_2D[k]);
+			}
+			free(led_channel->ledstring_2D);
+		}
+
+		if (led_channel->cr != NULL) cairo_destroy(led_channel->cr);
+		if (led_channel->surface != NULL) cairo_surface_destroy(led_channel->surface);
+		if (led_channel->surface_data != NULL) free(led_channel->surface_data);
+
+		led_channel->width = width;
+		led_channel->height = height;
+		ledstring_1D = get_led_string(channel);
+		ledstring_1D += start_led; //move to starting position
+		ledstring_2D = (ws2811_led_t***)malloc(height * sizeof(ws2811_led_t**));
+
+		for (int i = 0; i < height;i++) {
+			ledstring_2D[i] = (ws2811_led_t**)malloc(width * sizeof(ws2811_led_t*));
+			memset(ledstring_2D[i], 0, width * sizeof(ws2811_led_t*));
+		}
+
+		led_channel->ledstring_2D = ledstring_2D;
+		
+		int x, y, offset;
+
+		switch (panel_type) {
+		case 0: //normal type, row by row
+			offset = 0;
+			for (y = 0;y < height;y++) {
+				for (x = 0;x < width; x++) {
+					ledstring_2D[y][x] = &ledstring_1D[offset];
+					offset++;
+				}
+			}
+			break;
+		case 1: //normal type, row by row but odd rows are reverse connected meaning leds connected from right to left, display starts at left top
+			offset = 0;
+			for (y = 0;y < height;y++) {
+				for (x = 0;x < width; x++) {
+					if ((y % 2) == 0) {
+						ledstring_2D[y][x] = &ledstring_1D[offset];
+					} else {
+						ledstring_2D[y][width - x - 1] = &ledstring_1D[offset];
+					}
+					offset++;
+				}
+			}
+			break;
+		case 2: //panels with vertical rows for each panel starting left top of each panel row
+			for (y = 0;y < height;y++) {
+				for (x = 0;x < width; x++) {
+					offset = (y / panel_size_y) * panel_size_y * width;
+					offset += x * panel_size_y;
+					if ((x & 1) != 0) offset += (panel_size_y - (y % panel_size_y) - 1);
+					else offset += (y % panel_size_y);
+					ledstring_2D[y][x] = &ledstring_1D[offset];
+				}
+			}
+			break;
+		case 3: //panels with individual vertical rows starting left top of each panel row but odd panel rows start from the right bottom.
+			for (y = 0;y < height;y++) {
+				for (x = 0;x < width; x++) {
+					int panel_row_index = y / panel_size_y;
+					offset = panel_row_index * panel_size_y * width;
+					if ((panel_row_index % 2) == 0) { //even panel row same as in case 1
+						offset += x * panel_size_y;
+						if ((x & 1) != 0) offset += (panel_size_y - (y % panel_size_y) - 1);
+						else offset += (y % panel_size_y);
+						ledstring_2D[y][x] = &ledstring_1D[offset];
+					} else { //odd panel rows, start from the right top, complicated but easy to connect multiple panels :) ...
+						offset += (width  - x - 1) * panel_size_y;
+						if ((x & 1) == 0) offset += (y % panel_size_y);
+						else offset += (panel_size_y - (y % panel_size_y) - 1);
+						ledstring_2D[y][x] = &ledstring_1D[offset];
+					}
+				}
+			}
+			break;
+		case 4: //custom map from file, file format:  X, Y = LED_INDEX \n
+			;
+			FILE * file = fopen(filename, "r");
+
+			if (debug) printf("Reading led map file %s\n", filename);
+			if (file == NULL) {
+				perror("Error loading map file ");
+				return;
+			}
+
+			x = 0;
+			y = 0;
+			char line[1024];
+			while (!feof(file)) {
+				int offset = 0;
+				fscanf(file, "%d %d %d", &x, &y, &offset);
+				if ((x >= 0 && x < width) && (y >= 0 && y < height)) {
+					ledstring_2D[y][x] = &ledstring_1D[offset];
+				}
+			}
+			
+			fclose(file);
+			break;
+		default:
+			fprintf(stderr, "Error invalid panel_type\n");
+
+			break;
+		}
+		
+		led_channel->surface_stride = cairo_format_stride_for_width(CAIRO_FORMAT_RGB24, width);
+		led_channel->pixel_stride = led_channel->surface_stride / sizeof(unsigned int);
+
+		led_channel->surface_data = (unsigned char*)malloc(led_channel->surface_stride * height * sizeof(unsigned char));
+
+		led_channel->surface =  cairo_image_surface_create_for_data(led_channel->surface_data, CAIRO_FORMAT_RGB24, width , height, led_channel->surface_stride);
+
+		led_channel->main_cr = cairo_create(led_channel->surface);
+		led_channel->cr = led_channel->main_cr;
+		
+		cairo_set_source_rgba(led_channel->cr, 0, 0, 0, 0);
+		//cairo_pattern_set_filter(cairo_get_source(led_channel->cr), CAIRO_FILTER_NEAREST);
+		cairo_set_operator(led_channel->cr, CAIRO_OPERATOR_SOURCE);
+		cairo_paint(led_channel->cr);
+		//cairo_set_antialias(led_channel->cr, CAIRO_ANTIALIAS_NONE);
+
+	}else {
+		fprintf(stderr, ERROR_INVALID_CHANNEL);
+	}
+}
+#endif
 
 //resets all initialized channels and sets memory
 void reset_led_strings() {
@@ -649,11 +1140,38 @@ void reset_led_strings() {
 	}
 
 	for (i = 0; i < MAX_CHANNELS; i++) {
+		led_channels[i].led_count = 0;
+		led_channels[i].color_size = 0;
 		led_channels[i].channel_index = -1;
 		led_channels[i].channel_type = CHANNEL_TYPE_NONE;
 		led_channels[i].initialized = false;
 		led_channels[i].sk9822_channel = NULL;
 		led_channels[i].ws2811_channel = NULL;
+		led_channels[i].ledstring_1D = NULL;
+
+		if (led_channels[i].virtual_channel != NULL) {
+			free(led_channels[i].virtual_channel);
+		}
+		led_channels[i].virtual_channel = NULL;
+
+#ifdef USE_2D
+		if (led_channels[i].ledstring_2D != NULL) {
+			for (int k = 0;k < led_channels[i].height;k++) {
+				free(led_channels[i].ledstring_2D[k]);
+			}
+			free(led_channels[i].ledstring_2D);
+			led_channels[i].ledstring_2D = NULL;
+		}
+
+
+		if (led_channels[i].cr != NULL) cairo_destroy(led_channels[i].cr);
+		if (led_channels[i].surface != NULL) cairo_surface_destroy(led_channels[i].surface);
+		if (led_channels[i].surface_data != NULL) free(led_channels[i].surface_data);
+
+		led_channels[i].surface = NULL;
+		led_channels[i].surface_data = NULL;
+		cairo_reset_layers(&led_channels[i]);
+#endif
 	}
 
 	create_sk9822(&sk9822_ledstring);
@@ -663,8 +1181,10 @@ void reset_led_strings() {
 //sets the ws2811 channels
 //setup channel, led_count, type, invert, global_brightness, GPIO
 //setup channel, led_count, type, invert, global_brightness, SPI_DEV, SPI_SPEED, ALT_SPI_PIN
+//setup channel, led_count, type, parent_channel_number, offset
+//type: WS2811_STRIP* OR SK9822_STRIP* OR SK6812_STRIP OR CHANNEL_TYPE_VIRTUAL
 void setup_ledstring(thread_context * context, char * args){
-    int channel=0, led_count=10, type=0, invert=0, brightness=255, GPIO=18, spi_speed = SK9822_DEFAULT_SPI_SPEED, alt_spi_pin= SK9822_DEFAULT_SPI_GPIO;
+    int channel=0, led_count=10, type=0, invert=0, brightness=255, GPIO=18, spi_speed = SK9822_DEFAULT_SPI_SPEED, alt_spi_pin= SK9822_DEFAULT_SPI_GPIO, parent_channel_index=-1, offset=0;
 	char spi_dev[PATH_MAX];
 
     const int led_types[]={WS2811_STRIP_RGB, //0 
@@ -673,7 +1193,7 @@ void setup_ledstring(thread_context * context, char * args){
                            WS2811_STRIP_GBR, //3 
                            WS2811_STRIP_BRG, //4
                            WS2811_STRIP_BGR, //5 
-                           SK6812_STRIP_RGBW,//6
+						   SK6812_STRIP_RGBW,//6
                            SK6812_STRIP_RBGW,//7
                            SK6812_STRIP_GRBW,//8 
                            SK6812_STRIP_GBRW,//9 
@@ -692,12 +1212,13 @@ void setup_ledstring(thread_context * context, char * args){
 	args = read_channel(args, & channel);
 	args = read_int(args, & led_count);
 	args = read_int(args, & type);
-	args = read_int(args, & invert);
-	args = read_int(args, & brightness);
+
     
+	int free_channel_index = -1;
+
 	if (channel >= 0 && channel < MAX_CHANNELS) {
 
-		if (debug) printf("Initialize channel %d,%d,%d,%d,%d,%d\n", channel, led_count, type, invert, brightness, GPIO);
+		if (debug) printf("Initialize channel %d,%d,%d,%d,%d,%d.\n", channel, led_count, type, invert, brightness, GPIO);
 
 		//check if the given channel is already in use
 		if (is_valid_channel_number(channel)) {
@@ -708,32 +1229,40 @@ void setup_ledstring(thread_context * context, char * args){
 		int channel_type = CHANNEL_TYPE_NONE;
 		int color_size = 4;
 
-		switch (led_types[type]) {
-		case WS2811_STRIP_RGB:
-		case WS2811_STRIP_RBG:
-		case WS2811_STRIP_GRB:
-		case WS2811_STRIP_GBR:
-		case WS2811_STRIP_BRG:
-		case WS2811_STRIP_BGR:
-			channel_type = CHANNEL_TYPE_WS2811;
-			color_size = 3;
-			if (type > 11) channel_type = CHANNEL_TYPE_SK9822;
-			break;
-		case SK6812_STRIP_RGBW:
-		case SK6812_STRIP_RBGW:
-		case SK6812_STRIP_GRBW:
-		case SK6812_STRIP_GBRW:
-		case SK6812_STRIP_BRGW:
-		case SK6812_STRIP_BGRW:
-			channel_type = CHANNEL_TYPE_WS2811;
-			color_size = 4;
-			break;
+		if (type != CHANNEL_TYPE_VIRTUAL) {
+			
+			args = read_int(args, &invert);
+			args = read_int(args, &brightness);
+
+			switch (led_types[type]) {
+			case WS2811_STRIP_RGB:
+			case WS2811_STRIP_RBG:
+			case WS2811_STRIP_GRB:
+			case WS2811_STRIP_GBR:
+			case WS2811_STRIP_BRG:
+			case WS2811_STRIP_BGR:
+				channel_type = CHANNEL_TYPE_WS2811;
+				color_size = 3;
+				if (type > 11) channel_type = CHANNEL_TYPE_SK9822;
+				break;
+			case SK6812_STRIP_RGBW:
+			case SK6812_STRIP_RBGW:
+			case SK6812_STRIP_GRBW:
+			case SK6812_STRIP_GBRW:
+			case SK6812_STRIP_BRGW:
+			case SK6812_STRIP_BGRW:
+				channel_type = CHANNEL_TYPE_WS2811;
+				color_size = 4;
+				break;
+			}
+
+			free_channel_index = get_free_channel_index(channel_type); //get next free channel for WS2811 or SK9822 depending on what user wants
+			led_channels[channel].channel_index = free_channel_index; //save this for the init procedure
+		} else {
+			channel_type = CHANNEL_TYPE_VIRTUAL;
 		}
 
-		int free_channel_index = get_free_channel_index(channel_type); //get next free channel for WS2811 or SK9822 depending on what user wants
-
 		led_channels[channel].channel_type = channel_type; //save the type of channel
-		led_channels[channel].channel_index = free_channel_index; //save this for the init procedure
 
 		switch (channel_type) {
 		case CHANNEL_TYPE_WS2811:
@@ -752,6 +1281,8 @@ void setup_ledstring(thread_context * context, char * args){
 			ws2811_ledstring.channel[free_channel_index].strip_type = led_types[type];
 			ws2811_ledstring.channel[free_channel_index].brightness = brightness;
 			ws2811_ledstring.channel[free_channel_index].color_size = color_size;
+			led_channels[channel].led_count = led_count;
+			led_channels[channel].color_size = color_size;
 			break;
 		case CHANNEL_TYPE_SK9822:
 			if (free_channel_index == -1) {
@@ -776,13 +1307,40 @@ void setup_ledstring(thread_context * context, char * args){
 			strcpy(sk9822_ledstring.channels[free_channel_index].spi_dev, spi_dev);
 			sk9822_ledstring.channels[free_channel_index].spi_speed = spi_speed;
 			sk9822_ledstring.channels[free_channel_index].strip_type = led_types[type];
+			led_channels[channel].led_count = led_count;
+			led_channels[channel].color_size = color_size;
+			break;
+		case CHANNEL_TYPE_VIRTUAL:
+			args = read_channel(args, &parent_channel_index);
+			args = read_int(args, &offset);
 
+			if (parent_channel_index >=0 && parent_channel_index < MAX_CHANNELS && led_channels[parent_channel_index].channel_type!=CHANNEL_TYPE_NONE) {
+				int max_led_count = led_count;
+				if (max_led_count > get_led_count(parent_channel_index) - offset) max_led_count = get_led_count(parent_channel_index) - offset;
+				if (max_led_count <= 0) {
+					fprintf(stderr, "Invalid offset / led count exeeds number of leds in parent string.\n");
+					return;
+				}
+
+				if (led_channels[channel].virtual_channel == NULL) free(led_channels[channel].virtual_channel);
+
+				led_channels[channel].virtual_channel = (virtual_channel_t*)malloc(sizeof(virtual_channel_t));
+				led_channels[channel].channel_index = -1; //save this for the init procedure
+				led_channels[channel].virtual_channel->color_size = led_channels[parent_channel_index].color_size;
+				led_channels[channel].virtual_channel->count = max_led_count;
+				led_channels[channel].virtual_channel->parent_offset = offset;
+				led_channels[channel].led_count = max_led_count;
+				led_channels[channel].color_size = led_channels[parent_channel_index].color_size;
+			} else {
+				fprintf(stderr, "Invalid parent channel number %d\n", parent_channel_index + 1);
+				return;
+			}
 			break;
 		default:
 			fprintf(stderr, "Error Unknown led type for setup command of channel %d, led type: %d\n", channel + 1, type);
 			return;
 		}
-
+		
         int max_size=0,i;
         for (i=0; i<RPI_PWM_CHANNELS;i++){
             int size = DEFAULT_COMMAND_LINE_SIZE + led_count  * 2 * color_size;
@@ -845,6 +1403,12 @@ void print_settings(){
 				printf("    SPI-Speed:   %d kHz\n", sk9822_ledstring.channels[i].spi_speed / 1000);
 				printf("    GPIO:        %d\n", sk9822_ledstring.channels[i].gpionum);
 				break;
+			case CHANNEL_TYPE_VIRTUAL:
+				printf("	Type:		Virtual\n");
+				printf("	Parent:		%d\n", led_channels[i].virtual_channel->parent_channel_index);
+				printf("	Offset:		%d\n", led_channels[i].virtual_channel->parent_offset);
+				printf("	Count:		%d\n", led_channels[i].virtual_channel->count);
+				printf("	Colors:		%d\n", led_channels[i].virtual_channel->color_size);
 			}
 		}
 	}
@@ -919,6 +1483,7 @@ void render(thread_context * context, char * args){
 #include "effects/fly_in.c"
 #include "effects/progress.c"
 
+
 #ifdef USE_JPEG
 	#include "effects/read_jpg.c"
 #endif
@@ -926,6 +1491,21 @@ void render(thread_context * context, char * args){
 
 #ifdef USE_PNG
 	#include "effects/read_png.c"
+#endif
+
+#ifdef USE_2D
+	#include "2D/set_pixel.c"
+	#include "2D/screenshot.c"
+	#include "2D/print_text.c"
+	#include "2D/cls.c"
+	#include "2D/message_board.c"
+	#include "2D/rectangle.c"
+	#include "2D/line.c"
+	#include "2D/circle.c"
+	#include "2D/image.c"
+	#include "2D/init_layer.c"
+	#include "2D/change_layer.c"
+	#include "2D/text_input.c"
 #endif
 
 //save_state <channel>,<filename>,<start>,<len>
@@ -1394,8 +1974,38 @@ void execute_command(thread_context * context, char * command_line){
 			fly_in(context, arg);
 		}else if (strcmp(command, "fly_out")==0){
 			fly_out(context, arg);
-		}else if (strcmp(command, "progress")==0){
+		}else if (strcmp(command, "progress") == 0) {
 			progress(context, arg);
+		#ifdef USE_2D
+		}else if (strcmp(command, "set_pixel_color") == 0) {
+			set_pixel_color(context, arg);
+		}else if (strcmp(command, "config_2D") == 0) {
+			config_2D(context, arg);
+		}else if (strcmp(command, "take_screenshot") == 0) {
+			take_screenshot(context, arg);
+		}else if (strcmp(command, "draw_image")==0){
+			draw_image(context, arg);
+		}else if (strcmp(command, "print_text") == 0) {
+			print_text(context, arg);
+		}else if (strcmp(command, "cls") == 0) {
+			cls(context, arg);
+		}else if (strcmp(command, "change_layer")==0){
+			change_layer(context, arg);
+		}else if (strcmp(command, "message_board") == 0) {
+			message_board(context, arg);
+		} else if (strcmp(command, "draw_rectangle") == 0) {
+			draw_rectangle(context, arg);
+		}else if (strcmp(command, "draw_sharp_line")==0){
+			draw_sharp_line(context, arg);
+		}else if (strcmp(command, "draw_line") == 0) {
+			draw_line(context, arg);
+		}else if (strcmp(command, "draw_circle") == 0) {
+			draw_circle(context, arg);
+		} else if (strcmp(command, "init_layer") == 0) {
+			init_layer(context, arg);
+		}else if (strcmp(command, "text_input")==0){
+			text_input(context, arg);
+		#endif //USE_2D
 		#ifdef USE_JPEG
 		}else if (strcmp(command, "readjpg")==0){
 			readjpg(context, arg);
@@ -1554,6 +2164,11 @@ void load_config_file(char * filename){
 	
 	if (debug) printf("Reading config file %s\n", filename);
 	
+	if (file == NULL) {
+		perror("Unable to open config file.");
+		return;
+	}
+
 	char line[1024];
     while (fgets(line, sizeof(line), file) != NULL) {
 		char * val = strchr(line, '=');
@@ -1619,6 +2234,7 @@ int main(int argc, char *argv[]){
     
     srand (time(NULL));
 
+	memset(led_channels, 0, sizeof(led_channels));
 	reset_led_strings();
     
 	pthread_mutex_init(&ws2812_render_mutex, NULL);
@@ -1644,6 +2260,9 @@ int main(int argc, char *argv[]){
 		threads[i].loop_count=0;
 		threads[i].write_to_own_buffer=0;
 		threads[i].execute_main_do_loop=0;
+#ifdef USE_2D
+		threads[i].ft_init = false;
+#endif
 		for(j=0;j<MAX_LOOPS;j++){
 			threads[i].loops[j].do_pos=0;      //positions of 'do' in file loop, max 32 loops
 			threads[i].loops[j].n_loops=0;
@@ -1679,6 +2298,10 @@ int main(int argc, char *argv[]){
             if (argc>arg_idx+1){
                 input_file = fopen(argv[arg_idx+1], "r");
                 printf("Opening %s.\n", argv[arg_idx+1]);
+				if (input_file == NULL) {
+					perror("Error opening command file.");
+					return 1;
+				}
 				arg_idx++;
             }else{
                 fprintf(stderr,"Error you must enter a file name after -f option\n");
@@ -1711,7 +2334,7 @@ int main(int argc, char *argv[]){
 				strcpy(initialize_cmd, argv[arg_idx]);
 			}
 		}else if (strcmp(argv[arg_idx], "-?")==0){
-			printf("WS2812 Server program for Raspberry Pi V5.2\n");
+			printf("WS2812 Server program for Raspberry Pi V6.0\n");
 			printf("Command line options:\n");
 			printf("-p <pipename>       	creates a named pipe at location <pipename> where you can write command to.\n");
 			printf("-f <filename>       	read commands from <filename>\n");
