@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css"/>
+		<title>WS2812 Server - light organ</title>
+	</head>
+<body>
+<p>
+This will make the entire strip blink on the rhythm of the music.<br/>
+First a rainbow is rendered into the strip and color mode of the light_organ command is set to 3 which will keep the rainbow and only change the intensity of the LEDs.
+</p>
+
+<div class="commands">
+<code>
+setup 1,120,3
+init
+record_audio "plughw:CARD=Device,DEV=0"
+rainbow 1
+light_organ 1,3
+</code>
+</div>
+
+<p><a href="index.htm">Back</a></p>
+</body>
+</html>

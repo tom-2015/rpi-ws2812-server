@@ -1,3 +1,6 @@
+# Version 6.1
+* Added functions to make LEDs react to audio input
+
 # Version 6.0
 * Added support for 2D graphics
 * Added virtual channels

@@ -10,13 +10,13 @@ read the change log to see what is new:
 You can use this with the WS2811, WS2812, SK6812, SK9822 chips.
 
 # Installation
-On the raspberry you open a terminal window and type following commands:
+Standard installation with support for all features use the following commands:
 ```
 sudo apt-get update
-sudo apt-get install gcc make git libjpeg-dev libpng-dev pkg-config
+sudo apt-get install gcc make git libjpeg-dev libpng-dev pkg-config libasound2-dev libcairo2-dev libx11-dev libxcb1-dev libfreetype6-dev
 git clone https://github.com/tom-2015/rpi-ws2812-server.git
 cd rpi-ws2812-server
-make
+make ENABLE_2D=1 ENABLE_AUDIO=1
 sudo chmod +x ws2812svr
 ```
 
@@ -31,6 +31,12 @@ With 2D support you can connect multiple LED panels to your Pi and easly render 
 sudo apt-get install pkg-config libcairo2-dev libx11-dev libxcb1-dev libfreetype6-dev
 ```
 make ENABLE_2D=1
+```
+
+If you want to use audio commands to make your LEDs react to music input (through USB sound card). You must
+install libasound2-dev and compile with ENABLE_AUDIO=1
+```
+make ENABLE_AUDIO=1
 ```
 
 On newer Raspbian (>=Jessie) operating system the audio output is activated by default, you need to disable this:
@@ -325,13 +331,13 @@ color_change <channel>,<start_color>,<stop_color>,<duration>,<start>,<len>
 
 * `chaser` makes a chaser light
 ```
-chaser <channel>,<duration>,<color>,<direction>,<count>,<delay>,<start>,<len>,<brightness>,<loops>
+chaser <channel>,<duration>,<color>,<count>,<direction>,<delay>,<start>,<len>,<brightness>,<loops>
 
 # <channel>     Channel number to use
 # <duration>    Max number of seconds the event may take in seconds (default 10) use 0 to make chaser run forever
 # <color>       Color 000000-FFFFFF to use for chasing leds
-# <direction>   Direction 1 or 0 to indicate forward/backwards direction of movement
 # <count>       Number of LEDs in the chaser that will light up
+# <direction>   Direction 1 or 0 to indicate forward/backwards direction of movement
 # <delay>       Delay between moving one pixel (milliseconds) default is 10ms
 # <start>       Start effect at this led position
 # <len>         Number of leds the chaser will move before starting back start led
@@ -898,3 +904,86 @@ pixel_color <channel>,<x>,<y>,<z>,<color>
 # <z>				Z location to fill, a.t.m. Z is not supported
 # <color>			Color to set in the pixel
 ```
+
+# Audio input
+Since version 6.1 it's possible to make LEDs react to audio input. This audio will be captured from an ALSA sound device (USB sound card,...).
+This requires to compile with the parameter ENABLE_AUDIO=1.
+Before you can use any of the audio commands you first need to start recording, you can do so with the record_audio command.
+NOTE: if you want to use multiple threads each thread needs to run the record_audio command before you can use the audio effect commands.
+
+```
+
+* `record_audio` records audio
+
+```
+record_audio <channel>,<sample_rate>,<sample_count>,<channels>
+
+# <channel>			Channel number
+# <sample_rate>		Here you can change the number of samples per second, default is 24000. Higher will require more CPU but better results with high frequency.
+# <sample_count>	Number of samples to store in the internal buffer before forwarding to DSP. Default is 1024 and you better leave it like that.
+# <channels>		Number of audio channels, default is 2 (stereo)
+```
+
+```
+
+* `light_organ` Generates a light organ, alle LEDs blink to the rhythm of the music.
+
+```
+light_organ <channel>,<color_mode>,<color(s)>,<color_change_delay>,<duration>,<delay>,<start>,<len>
+
+# <channel>				Channel number
+# <color_mode>			Sets how changing of color should behave (default 2).
+# <color(s)>			Give color or multiple colors like FF0000 (red) or FF000000FF000000FF (red,green,blue)
+# <color_change_delay>	Number of seconds to wait before changing the color
+# <duration>			Number of seconds before automatic exit of the command, 0 to run forever.
+# <delay>				Delay between rendering of the strip. default is 25ms increase to make flashing slower
+# <start>				Start at this LED number
+# <len>					Effect for this number of LEDs starting at start
+```
+Color modes:
+0 = 1 fixed color
+1 = color sequence provided in the color(s) argument
+2 = random colors provided in the color(s) argument, color(s) argument can be left empty for some default colors.
+3 = keep existing color in the strip, this must be set first 
+
+```
+
+* `pulses` Generates wave pattern on the LED strip (like a music driven chaser)
+
+```
+pulses <channel>,<threshold>,<color_mode>,<color(s)>,<delay>,<color_change_delay>,<direction>,<duration>,<min_brightness>,<start>,<len>
+
+# <channel>				Channel number
+# <threshold>			Minimum level of audio sample to react, float value range 0-1 default is 0.1, audio sample values <0.1 will be ignored
+# <color_mode>			Sets how changing of color should behave, see light_organ for possible values (default 2).
+# <color(s)>			Give color or multiple colors like FF0000 (red) or FF000000FF000000FF (red,green,blue)
+# <delay>				Delay between rendering of the strip, default 25ms. Decrease to make wave go faster but increase CPU load
+# <color_change_delay>	Number of seconds to wait before changing the color
+# <direction>			Chaser go forward or backwards
+# <duration>			Number of seconds before automatic exit of the command, 0 to run forever.
+# <min_brightness>		Minimum level of brightness or LEDs will be turned off (default is 10 max 255).
+# <start>				Start at this LED number
+# <len>					Effect for this number of LEDs starting at start
+```
+
+* `vu_meter` 
+
+```
+vu_meter <channel>,<color_mode>,<color(s)>,<color_change_delay>,<duration>,<delay>,<brightness>,<start>,<len>
+
+# <channel>				Channel number
+# <color_mode>			Sets how changing of color should behave (default 4).
+# <color(s)>			Give color or multiple colors like FF0000 (red) or FF000000FF000000FF (red,green,blue)
+# <color_change_delay>	Number of seconds to wait before changing the color
+# <duration>			Number of seconds before automatic exit of the command, 0 to run forever.
+# <delay>				Delay between rendering of the strip, default 25ms. Decrease to make wave go faster but increase CPU load
+# <brightness>			Brightness level of turned on LEDs, (0-255) default is 255
+# <start>				Start at this LED number
+# <len>					Effect for this number of LEDs starting at start
+```
+Color modes:
+0 = 1 fixed color
+1 = color sequence provided in the color(s) argument
+2 = random colors provided in the color(s) argument, color(s) argument can be left empty for some default colors.
+3 = keep existing color in the strip, this must be set first 
+4 = Classic VU meter colors (green - yellow - orange - red)

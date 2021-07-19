@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css"/>
+		<title>WS2812 Server - recording audio</title>
+	</head>
+<body>
+<p>
+You'll need a USB sound interface to record audio or HDMI capture device to capture audio from another Raspberry or computer.
+ALSA must be installed as sound system for your Raspberry (but this is installed by default).
+
+Don't forget to install the required audio library first with:
+<div class="commands">
+<code>
+sudo apt-get install libasound2-dev
+</code>
+</div>
+
+To build the ws2812svr with audio support, use command: 
+<div class="commands">
+<code>
+make ENABLE_AUDIO=1
+</code>
+</div>
+
+Next you'll need to list the available audio record devices with:
+<div class="commands">
+<code>
+arecord -L
+</code>
+</div>
+
+It will list all available audio devices, search for the line that begins with "plughw". For example: plughw:CARD=Device,DEV=0 this is the device name we need to initialize recording.<br/>
+Then you can start recording audio with these commands for example a 120 led string:
+</p>
+
+<div class="commands">
+<code>
+setup 1,120,3
+init
+record_audio "plughw:CARD=Device,DEV=0"
+</code>
+</div>
+
+Now audio will be recorded in internal buffer and you can start using audio effect commands.<br/>
+NOTE: the recording is thread dependend, this means if you want to create a second thread you'll also need to start a record command in that thread first.
+
+
+<p><a href="index.htm">Back</a></p>
+</body>
+</html>

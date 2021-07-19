@@ -31,6 +31,12 @@
 #endif 
 
 
+#ifdef USE_AUDIO
+	//#include <portaudio.h>
+	#include <alsa/asoundlib.h>
+#endif
+
+
 #define DEFAULT_DEVICE_FILE "/dev/ws281x"
 #define DEFAULT_COMMAND_LINE_SIZE 1024
 #define DEFAULT_BUFFER_SIZE 32768
@@ -131,6 +137,26 @@ int port=0;
 #define JOIN_THREAD_CANCEL 0
 #define JOIN_THREAD_WAIT 1
 
+#ifdef USE_AUDIO
+typedef struct {
+	snd_pcm_t* handle;
+	snd_pcm_hw_params_t* hw_params;
+	snd_pcm_format_t format;
+	
+	pthread_t thread; //capture thread
+	volatile int capturing; //1 if capturing
+	unsigned int rate; //sample rate
+	unsigned int channel_count; //number of channels capturing
+	volatile int dsp_mode; //what should we do with packets captured?
+	unsigned int dsp_buffer_sample_count; //buffer size DSP uses to process large ammounts of packets at once (sample count)
+	pthread_mutex_t buffer_mutex; //mutex for blocking on shared data (depends on dsp_mode)
+	volatile float threshold;  //threshold for dsp_mode 1
+	void * capture_dst_buffer; //where processed samples should be stored, can be integer,...
+	unsigned int capture_dst_buffer_count; //number of samples stored in the capture_dst_buffer a.t.m.
+	unsigned int capture_dst_buffer_size; //size of the dst_buffer (depends on the dsp_mode)
+} capture_options;
+#endif
+
 typedef struct {
 	pthread_t thread; 				     //a thread that will repeat code after client closed connection
 	pthread_mutex_t sync_mutex;
@@ -163,6 +189,9 @@ typedef struct {
 	bool ft_init;
 #endif
 
+#ifdef USE_AUDIO
+	capture_options audio_capture;
+#endif 
 } thread_context;
 
 thread_context threads[MAX_THREADS+1];
@@ -712,7 +741,7 @@ char * read_color(char * args, unsigned int * out_color, unsigned int color_size
     unsigned int color_string_idx=0;
 	if (args!=NULL && *args!=0){
 		//*out_color = 0;
-		while (*args!=0 && color_string_idx<color_size*2){
+		while (*args!=0 && *args!=',' && color_string_idx<color_size*2){
 			if (*args!=' ' && *args!='\t'){ //skip space
 				color_string[color_string_idx]=*args;
 				color_string_idx++;
@@ -1508,6 +1537,13 @@ void render(thread_context * context, char * args){
 	#include "2D/text_input.c"
 #endif
 
+#ifdef USE_AUDIO
+	#include "audio/record.c"
+	#include "audio/pulses.c"
+	#include "audio/light_organ.c"
+	#include "audio/vu_meter.c"
+#endif
+
 //save_state <channel>,<filename>,<start>,<len>
 void save_state(thread_context * context, char * args){
 	int channel=0,start=0, len=0, color, brightness,i=0;
@@ -1974,38 +2010,65 @@ void execute_command(thread_context * context, char * command_line){
 			fly_in(context, arg);
 		}else if (strcmp(command, "fly_out")==0){
 			fly_out(context, arg);
-		}else if (strcmp(command, "progress") == 0) {
+		}
+		else if (strcmp(command, "progress") == 0) {
 			progress(context, arg);
-		#ifdef USE_2D
-		}else if (strcmp(command, "set_pixel_color") == 0) {
+#ifdef USE_2D
+		}
+		else if (strcmp(command, "set_pixel_color") == 0) {
 			set_pixel_color(context, arg);
-		}else if (strcmp(command, "config_2D") == 0) {
+		}
+		else if (strcmp(command, "config_2D") == 0) {
 			config_2D(context, arg);
-		}else if (strcmp(command, "take_screenshot") == 0) {
+		}
+		else if (strcmp(command, "take_screenshot") == 0) {
 			take_screenshot(context, arg);
-		}else if (strcmp(command, "draw_image")==0){
+		}
+		else if (strcmp(command, "draw_image") == 0) {
 			draw_image(context, arg);
-		}else if (strcmp(command, "print_text") == 0) {
+		}
+		else if (strcmp(command, "print_text") == 0) {
 			print_text(context, arg);
-		}else if (strcmp(command, "cls") == 0) {
+		}
+		else if (strcmp(command, "cls") == 0) {
 			cls(context, arg);
-		}else if (strcmp(command, "change_layer")==0){
+		}
+		else if (strcmp(command, "change_layer") == 0) {
 			change_layer(context, arg);
-		}else if (strcmp(command, "message_board") == 0) {
+		}
+		else if (strcmp(command, "message_board") == 0) {
 			message_board(context, arg);
-		} else if (strcmp(command, "draw_rectangle") == 0) {
+		}
+		else if (strcmp(command, "draw_rectangle") == 0) {
 			draw_rectangle(context, arg);
-		}else if (strcmp(command, "draw_sharp_line")==0){
+		}
+		else if (strcmp(command, "draw_sharp_line") == 0) {
 			draw_sharp_line(context, arg);
-		}else if (strcmp(command, "draw_line") == 0) {
+		}
+		else if (strcmp(command, "draw_line") == 0) {
 			draw_line(context, arg);
-		}else if (strcmp(command, "draw_circle") == 0) {
+		}
+		else if (strcmp(command, "draw_circle") == 0) {
 			draw_circle(context, arg);
-		} else if (strcmp(command, "init_layer") == 0) {
+		}
+		else if (strcmp(command, "init_layer") == 0) {
 			init_layer(context, arg);
-		}else if (strcmp(command, "text_input")==0){
+		}
+		else if (strcmp(command, "text_input") == 0) {
 			text_input(context, arg);
 		#endif //USE_2D
+		#ifdef USE_AUDIO
+		} else if (strcmp(command, "record_audio") == 0) {
+			record_audio(context, arg);
+		}
+		else if (strcmp(command, "pulses") == 0) {
+			audio_pulses(context, arg);
+		}
+		else if (strcmp(command, "light_organ") == 0) {
+			light_organ(context, arg);
+		}else if (strcmp(command, "vu_meter")==0){
+			vu_meter(context, arg);
+		#endif
 		#ifdef USE_JPEG
 		}else if (strcmp(command, "readjpg")==0){
 			readjpg(context, arg);
@@ -2227,11 +2290,12 @@ void load_config_file(char * filename){
 }
 
 //main routine
-int main(int argc, char *argv[]){
-    int ret = 0;
-	int i,j;
-	int index=0;
-    
+int main(int argc, char* argv[]) {
+	int ret = 0;
+	int i, j;
+	int index = 0;
+
+   
     srand (time(NULL));
 
 	memset(led_channels, 0, sizeof(led_channels));
@@ -2334,7 +2398,7 @@ int main(int argc, char *argv[]){
 				strcpy(initialize_cmd, argv[arg_idx]);
 			}
 		}else if (strcmp(argv[arg_idx], "-?")==0){
-			printf("WS2812 Server program for Raspberry Pi V6.0\n");
+			printf("WS2812 Server program for Raspberry Pi V6.1\n");
 			printf("Command line options:\n");
 			printf("-p <pipename>       	creates a named pipe at location <pipename> where you can write command to.\n");
 			printf("-f <filename>       	read commands from <filename>\n");
@@ -2436,5 +2500,6 @@ int main(int argc, char *argv[]){
 	//if (thread_data!=NULL) free(thread_data);
     if (ws2811_ledstring.device!=NULL) ws2811_fini(&ws2811_ledstring);
 	sk9822_fini(&sk9822_ledstring);
+
     return ret;
 }
