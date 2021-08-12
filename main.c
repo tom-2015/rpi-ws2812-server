@@ -138,12 +138,19 @@ int port=0;
 #define JOIN_THREAD_WAIT 1
 
 #ifdef USE_AUDIO
+
+#define CAPTURE_MODE_ALSA 0
+#define CAPTURE_MODE_UDP 1
+#define CAPTURE_MODE_PIPE 2
+
 typedef struct {
 	snd_pcm_t* handle;
 	snd_pcm_hw_params_t* hw_params;
 	snd_pcm_format_t format;
 	
 	pthread_t thread; //capture thread
+	volatile int capture_mode; //mode for capturing
+	char capture_device_name[MAX_VAL_LEN]; //depends on capture mode, holds audio device name or udp port,...
 	volatile int capturing; //1 if capturing
 	unsigned int rate; //sample rate
 	unsigned int channel_count; //number of channels capturing
@@ -154,6 +161,7 @@ typedef struct {
 	void * capture_dst_buffer; //where processed samples should be stored, can be integer,...
 	unsigned int capture_dst_buffer_count; //number of samples stored in the capture_dst_buffer a.t.m.
 	unsigned int capture_dst_buffer_size; //size of the dst_buffer (depends on the dsp_mode)
+	float capture_gain; //multiply all samples with this factor
 } capture_options;
 #endif
 
@@ -2398,7 +2406,7 @@ int main(int argc, char* argv[]) {
 				strcpy(initialize_cmd, argv[arg_idx]);
 			}
 		}else if (strcmp(argv[arg_idx], "-?")==0){
-			printf("WS2812 Server program for Raspberry Pi V6.1\n");
+			printf("WS2812 Server program for Raspberry Pi V6.2\n");
 			printf("Command line options:\n");
 			printf("-p <pipename>       	creates a named pipe at location <pipename> where you can write command to.\n");
 			printf("-f <filename>       	read commands from <filename>\n");
