@@ -460,7 +460,7 @@ void render_channel(int channel) {
 			unsigned int * pixel_row = & pixels[y * stride];
 			for (unsigned int x = 0;x < led_channels[channel].width;x++) {
 				if (led_string_2D[y][x]) {
-					led_string_2D[y][x]->color = convert_cairo_color(*pixel_row); // ((led_color << 16) | (led_color >> 16) | (led_color & 0xFF00)) & 0xFFFFFF; 
+					led_string_2D[y][x]->color = convert_cairo_color(*pixel_row) & 0xFFFFFF; // ((led_color << 16) | (led_color >> 16) | (led_color & 0xFF00)) & 0xFFFFFF; 
 				}
 				pixel_row++;
 			}
@@ -2406,7 +2406,7 @@ int main(int argc, char* argv[]) {
 				strcpy(initialize_cmd, argv[arg_idx]);
 			}
 		}else if (strcmp(argv[arg_idx], "-?")==0){
-			printf("WS2812 Server program for Raspberry Pi V6.2\n");
+			printf("WS2812 Server program for Raspberry Pi V6.3\n");
 			printf("Command line options:\n");
 			printf("-p <pipename>       	creates a named pipe at location <pipename> where you can write command to.\n");
 			printf("-f <filename>       	read commands from <filename>\n");
