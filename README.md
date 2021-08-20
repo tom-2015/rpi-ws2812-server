@@ -72,7 +72,12 @@ render
 ```
 
 # Examples
-You can find examples in the examples folder.
+You can find examples in the examples [folder](https://github.com/tom-2015/rpi-ws2812-server/tree/master/examples).
+
+[![video control with smartphone](http://img.youtube.com/vi/r5E9i0jYYM0/0.jpg)](https://www.youtube.com/watch?v=r5E9i0jYYM0 "Control with smartphone")
+
+[![Example effects video](http://img.youtube.com/vi/kTWW5LN3Y2c/0.jpg)](https://www.youtube.com/watch?v=kTWW5LN3Y2c "Example effects")
+
 
 # Available commands
 Here is a list of commands you can type or send to the program. All commands have optional comma seperated parameters. The parameters must be in the correct order!
@@ -631,6 +636,8 @@ sudo make install
 Next you call config_2D which will initialize cairo surface / layers and attach them to the 1D led string. After this calling render on the channel will flush the cairo surface to the 1D led string and render it to the leds.
 Executing 1D effects on a 2D configured channel will have no effect.
 
+[![Hello world 2D](http://img.youtube.com/vi/jyhcD1sQR0I/0.jpg)](https://www.youtube.com/watch?v=jyhcD1sQR0I "Hello world 2D")
+
 # 2D graphics layers
 By default the bottom layer is initialized with a 2D channel but it's possible to initialize more layers and change the layer 2D commands will paint to.
 The render command will then paint all layers to the bottom layer / surface and send the result to LEDs.
@@ -915,13 +922,31 @@ NOTE: if you want to use multiple threads each thread needs to run the record_au
 * `record_audio` records audio
 
 ```
-record_audio <channel>,<sample_rate>,<sample_count>,<channels>
+record_audio <device>,<sample_rate>,<sample_count>,<channels>
 
-# <channel>			Channel number
+# <device>			Audio device, use arecord -L to list device and use the "plughw:*" device.
 # <sample_rate>		Here you can change the number of samples per second, default is 24000. Higher will require more CPU but better results with high frequency.
 # <sample_count>	Number of samples to store in the internal buffer before forwarding to DSP. Default is 1024 and you better leave it like that.
 # <channels>		Number of audio channels, default is 2 (stereo)
 ```
+
+Since version 6.2 you can use udp port or named pipe as audio input device.
+For example: udp://9000 as device will listen on local port 9000. External program can then send raw audio samples to this port.
+Audio samples can also be broadcasted on the network to multiple Pis when using udpb://9000 it will listen to broadcast port 9000.
+Example: arecord and socat can be used for this (also possible on a remote device by changing the destination ip 127.0.0.1):
+```
+arecord -f FLOAT_LE -r 24000 -c 2 - | socat -b 1024 - udp-datagram:127.0.0.1:6000,broadcast
+```
+
+Another option is to create a local named pipe with pipe:///dev/audio_input this will create a file where you can send audio samples to.
+For example with arecord:
+```
+arecord -D "plughw:CARD=Capture,DEV=0" -V stereo -f FLOAT_LE -r 24000 -c 2 - > /dev/audio_input
+```
+
+# Audio effects
+
+First start the record command (see above), then you can use these commands to make LEDs react to audio input.
 
 * `light_organ` Generates a light organ, alle LEDs blink to the rhythm of the music.
 
