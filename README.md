@@ -911,7 +911,6 @@ This requires to compile with the parameter ENABLE_AUDIO=1.
 Before you can use any of the audio commands you first need to start recording, you can do so with the record_audio command.
 NOTE: if you want to use multiple threads each thread needs to run the record_audio command before you can use the audio effect commands.
 
-```
 
 * `record_audio` records audio
 
@@ -922,8 +921,6 @@ record_audio <channel>,<sample_rate>,<sample_count>,<channels>
 # <sample_rate>		Here you can change the number of samples per second, default is 24000. Higher will require more CPU but better results with high frequency.
 # <sample_count>	Number of samples to store in the internal buffer before forwarding to DSP. Default is 1024 and you better leave it like that.
 # <channels>		Number of audio channels, default is 2 (stereo)
-```
-
 ```
 
 * `light_organ` Generates a light organ, alle LEDs blink to the rhythm of the music.
@@ -945,8 +942,6 @@ Color modes:
 1 = color sequence provided in the color(s) argument
 2 = random colors provided in the color(s) argument, color(s) argument can be left empty for some default colors.
 3 = keep existing color in the strip, this must be set first 
-
-```
 
 * `pulses` Generates wave pattern on the LED strip (like a music driven chaser)
 
