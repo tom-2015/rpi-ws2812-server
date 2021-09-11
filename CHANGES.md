@@ -1,3 +1,10 @@
+# Version 6.3
+* Fixed bug with SK6812 and 2D panels
+* Update documentation
+ 
+# Version 6.2
+* Added support for audio packets through UDP/named pipe
+
 # Version 6.1
 * Added functions to make LEDs react to audio input
 
