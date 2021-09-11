@@ -98,7 +98,7 @@ You can find examples in the examples [folder](https://github.com/tom-2015/rpi-w
 Install the Visual Studio Code extension to get syntax highlighting and autocompletion when writing scripts.
 ![Demo](https://github.com/tom-2015/rpi-ws2812svr-vsix/blob/main/demo.gif)
 
-Search for ws2812svr extension in your Visual Studio Code IDE.
+Search for ws2812svr extension in your Visual Studio Code IDE and save file with the **.ws** extension.
 
 # Available commands
 Here is a list of commands you can type or send to the program. All commands have optional comma seperated parameters. The parameters must be in the correct order!
