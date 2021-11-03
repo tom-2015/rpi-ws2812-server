@@ -1,4 +1,6 @@
-
+#include "pulses.h"
+#include "record.h"
+#include <pthread.h>
 //audio_pulses <channel>,<threshold>,<color_mode>,<color>,<delay>,<color_change_delay>,<direction>,<duration>,<min_brightness>,<start>,<len>
 void audio_pulses(thread_context* context, char* args) {
 	const unsigned int MAX_COLORS = 255;

@@ -1,3 +1,4 @@
+#include "chaser.h"
 //chaser makes leds run accross the led strip
 //chaser <channel>,<duration>,<color>,<count>,<direction>,<delay>,<start>,<len>,<brightness>,<loops>
 //channel = 1

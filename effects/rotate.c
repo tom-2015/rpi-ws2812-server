@@ -1,3 +1,5 @@
+#include "rotate.h"
+
 void rotate_strip(thread_context * context, int channel, int nplaces, int direction, unsigned int new_color, int use_new_color, int new_brightness){
 	ws2811_led_t tmp_led; 
 	ws2811_led_t* leds =  get_led_string(channel);

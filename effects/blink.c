@@ -1,3 +1,4 @@
+#include "blink.h"
 //makes some leds blink between 2 given colors for x times with a given delay
 //blink <channel>,<color1>,<color2>,<delay>,<blink_count>,<startled>,<len>
 void blink (thread_context * context, char * args){

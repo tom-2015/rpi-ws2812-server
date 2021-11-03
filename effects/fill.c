@@ -1,3 +1,4 @@
+#include "fill.h"
 //fills leds with certain color
 //fill <channel>,<color>,<start>,<len>,<OR,AND,XOR,NOT,=>
 void fill(thread_context * context, char * args){

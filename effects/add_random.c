@@ -1,3 +1,6 @@
+#include "add_random.h"
+
+#include <ctype.h>
 //generates random colors
 //random <channel>,<start>,<len>,<RGBWL>
 void add_random(thread_context * context, char * args){

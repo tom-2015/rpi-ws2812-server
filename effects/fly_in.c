@@ -1,3 +1,4 @@
+#include "fly_in.h"
 //fly in pixels from left or right filling entire string with a color
 //fly_in <channel>,<direction>,<delay>,<brightness>,<start>,<len>,<start_brightness>,<color>
 //direction = 0/1 fly in from left or right default 1

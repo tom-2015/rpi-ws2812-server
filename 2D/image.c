@@ -1,6 +1,9 @@
 #include <ctype.h>
-
+#include "image.h"
+#include "../gifdec.h"
+#include "../jpghelper.h"
 cairo_surface_t* cairo_image_surface_create_from_jpg(const char* filename);
+
 
 //draw a png file to surface
 //draw_image <channel>,<file_name>,<dst_x>,<dst_y>,<src_x>,<src_y>,<dst_width>,<dst_height>,<src_width>,<src_height>,<speed>,<max_loops>
@@ -31,11 +34,8 @@ void draw_image(thread_context* context, char* args) {
             
         if (strcmp(fileext, ".png") == 0) {
             src_surface = cairo_image_surface_create_from_png(filename);
-#ifdef USE_JPEG
-        }
-        else if (strcmp(fileext, ".jpg") == 0 || strcmp(fileext, ".jpeg") == 0) {
+        }else if (strcmp(fileext, ".jpg") == 0 || strcmp(fileext, ".jpeg") == 0) {
             src_surface = cairo_image_surface_create_from_jpg(filename);
-#endif
         }else if (strcmp(fileext, ".gif")==0){
             gif = gd_open_gif(filename);
             if (gif == NULL) {
@@ -81,8 +81,9 @@ void draw_image(thread_context* context, char* args) {
 
         double xScale = dst_width / (float)src_width;
         double yScale = dst_height / (float)src_height;
-
-        cairo_t* cr = led_channels[channel].cr;
+        
+        channel_info * led_channel = get_channel(channel);
+        cairo_t* cr = led_channel->cr;
 
         cairo_save(cr);
         cairo_scale(cr, xScale, yScale);
@@ -145,7 +146,6 @@ void draw_image(thread_context* context, char* args) {
     }
 }
 
-#ifdef USE_JPEG
 cairo_surface_t * cairo_image_surface_create_from_jpg(const char * filename) {
     struct jpeg_decompress_struct cinfo;
     struct my_error_mgr jerr;
@@ -217,4 +217,3 @@ cairo_surface_t * cairo_image_surface_create_from_jpg(const char * filename) {
 
     return surface;
 }
-#endif

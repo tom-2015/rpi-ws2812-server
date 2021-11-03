@@ -1,3 +1,4 @@
+#include "rainbow.h"
 //fills pixels with rainbow effect
 //count tells how many rainbows you want
 //rainbow <channel>,<count>,<startcolor>,<stopcolor>,<start>,<len>

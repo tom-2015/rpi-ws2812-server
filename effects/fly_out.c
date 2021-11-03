@@ -1,3 +1,4 @@
+#include "fly_out.h"
 //fly out pixels from left or right filling entire string with black or a color/brightness
 //fly_out <channel>,<direction>,<delay>,<brightness>,<start>,<len>,<end_brightness>,<color>
 //direction = 0/1 fly out from left or right default 1

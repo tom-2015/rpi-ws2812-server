@@ -1,3 +1,4 @@
+#include "color_change.h"
 //changes the color over time
 //color_change <channel>,<startcolor>,<stopcolor>,<duration>,<start>,<len>
 //start and stop = color values on color wheel (0-255)

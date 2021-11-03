@@ -46,3 +46,8 @@ Temporary Items
 *.o
 *.elf
 ws2812svr
+
+tests/
+
+.vscode
+.github

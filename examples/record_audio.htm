@@ -10,21 +10,7 @@
 You'll need a USB sound interface to record audio or HDMI capture device to capture audio from another Raspberry or computer.
 ALSA must be installed as sound system for your Raspberry (but this is installed by default).
 
-Don't forget to install the required audio library first with:
-<div class="commands">
-<code>
-sudo apt-get install libasound2-dev
-</code>
-</div>
-
-To build the ws2812svr with audio support, use command: 
-<div class="commands">
-<code>
-make ENABLE_AUDIO=1
-</code>
-</div>
-
-Next you'll need to list the available audio record devices with:
+Now you need to list the available audio record devices with:
 <div class="commands">
 <code>
 arecord -L

@@ -1,3 +1,6 @@
+#include "light_organ.h"
+#include "record.h"
+#include <pthread.h>
 //light_organ <channel>,<color_mode>,<color(s)>,<color_change_delay>,<duration>,<delay>,<start>,<len>
 void light_organ(thread_context* context, char* args) {
 	const unsigned int MAX_COLORS = 255;

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css"/>
+		<title>WS2812 Server - Capture video</title>
+	</head>
+<body>
+<p>
+You can capture video and paint it directly on your 2D matrix. You need to install the Raspberry Pi camera or USB camera / HDMI capture device that supports v4l2 MJPEG output.
+This example creates a 500x800 display and captures images from /dev/video0 (default Raspberry Pi camera).
+</p>
+
+<div class="commands">
+<code>
+setup 1,400000,3
+init
+config_2D 1,500,800,0,500,800
+camera 1,"/dev/video0",0,0,500,800
+</code>
+</div>
+
+<p>
+For capturing HDMI I'd recommend this type of capture card (which you can buy on AliExpress):<br/>
+<img src="hdmi_capture.jpg"/></p>
+
+<p><a href="index.htm">Back</a></p>
+</body>
+</html>

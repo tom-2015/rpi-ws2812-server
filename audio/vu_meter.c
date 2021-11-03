@@ -1,3 +1,7 @@
+#include "vu_meter.h"
+#include "record.h"
+#include <pthread.h>
+#include <math.h>
 //vu_meter <channel>,<color_mode>,<color(s)>,<color_change_delay>,<duration>,<delay>,<brightness>,<start>,<len>
 void vu_meter(thread_context* context, char* args) {
 	const unsigned int MAX_COLORS = 255;

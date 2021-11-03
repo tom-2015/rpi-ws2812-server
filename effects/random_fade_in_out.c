@@ -1,3 +1,4 @@
+#include "random_fade_in_out.h"
 typedef struct {
 	int led_index;
 	int brightness;

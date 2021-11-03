@@ -1,5 +1,6 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
+#include "../ws2812svr.h"
 
 //http://zetcode.com/gfx/cairo/basicdrawing/
 //draw_circle
@@ -27,7 +28,8 @@ void draw_circle(thread_context* context, char* args) {
         //cairo_pattern_set_filter(cairo_get_source(cr), CAIRO_FILTER_NEAREST);
         if (debug) printf("draw_circle %d,%f,%f,%f,%d,%f,%d,%f,%f,%d\n", channel, x, y, radius, fill_color, border_width, border_color,start_angle,stop_angle,negative);
 
-        cairo_t* cr = led_channels[channel].cr;
+        channel_info * led_channel = get_channel(channel);
+        cairo_t* cr = led_channel->cr;
        
 
         /*cairo_set_line_width(cr, 1);

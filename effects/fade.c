@@ -1,3 +1,4 @@
+#include "fade.h"
 //causes a fade effect in time
 //fade <channel>,<startbrightness>,<endbrightness>,<delay>,<step>,<startled>,<len>
 void fade (thread_context * context, char * args){

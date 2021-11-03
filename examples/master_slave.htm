@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css"/>
+		<title>WS2812 Server - Master Slave</title>
+	</head>
+<body>
+<p>
+With master - slave commands you can connect one WS2812 server instance to multiple Raspberry Pis.
+This enables you to connect as many LED strings as you want using multiple Raspberry Pis which are connected by Wifi or Ethernet.
+</p>
+
+First on the slave 1 execute these commands:
+<div class="commands">
+<code>
+setup 1,256,3
+init
+slave_listen 1, 8000
+</code>
+</div>
+
+on slave 2 execute the same commands:
+<div class="commands">
+<code>
+setup 1,512,3
+init
+do
+    slave_listen 1, 8000
+loop
+</code>
+</div>
+
+<p>
+slave_listen will now wait for the master to connect to port 8000. 
+When the master disconnects the command will end, you can put it in a do ... loop structure to automatically start listening again.
+</p>
+
+<p>
+On the master Raspberry, this is the Raspberry that will control ALL LED strings and run the main command script.
+The master must be able to connect to the slaves by network connection (TCP protocol).
+Setup a LED string of 256 LEDs on the master:
+</p>
+
+<div class="commands">
+<code>
+setup 1,256,100,"192.168.0.2",8000
+setup 2,512,100,"192.168.0.3",8000
+init
+fill 1,FF0000
+fill 2,00FF00
+render 1
+render 2
+</code>
+</div>
+
+<p>
+The master will connect to 192.168.0.2, this is the IP of the slave 1 Raspberry.
+The master will connect to 192.168.0.3, this is the IP of the slave 2 Raspberry.
+Then the master will fill channel 1 with red color, channel 2 with blue and the render commands will transfer the data to the slave Raspberries.
+The slave Raspberry will eventually render it to the LED string.
+</p>
+
+<p>
+    <b>NOTE:</b> If you want to use 2 channels on the same slave, put the slave_listen in different threads.
+</p>
+
+
+<p><a href="index.htm">Back</a></p>
+</body>
+</html>

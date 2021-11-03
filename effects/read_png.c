@@ -1,3 +1,5 @@
+#include "read_png.h"
+#include "../readpng.h"
 //read PNG image and put pixel data to LEDS
 //readpng <channel>,<FILE>,<BACKCOLOR>,<start>,<len>,<offset>,<OR AND XOR =>,<DELAY>,<flip even rows>
 //offset = where to start in PNG file
@@ -6,8 +8,8 @@
 //W = use the alpha data for the White leds in RGBW LED strips
 //DELAY = delay ms between 2 reads of LEN pixels, default=0 if 0 only <len> bytes at <offset> will be read
 void readpng(thread_context * context,char * args){
-	struct jpeg_decompress_struct cinfo;
-	struct my_error_mgr jerr;
+	//struct jpeg_decompress_struct cinfo;
+	//struct my_error_mgr jerr;
 	
 	char value[MAX_VAL_LEN];
 	int channel=0;

@@ -1,3 +1,4 @@
+#include "progress.h"
 
 void set_progress(ws2811_led_t * leds, int direction, int start, int len, float value, int brightness_on, int brightness_off){
 	int i;

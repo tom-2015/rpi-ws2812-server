@@ -1,4 +1,5 @@
 
+#include "init_layer.h"
 //init_layer, inits an extra layer or changes painting options, layers are painted from top to bottom
 //init_layer <channel>,<layer_nr>,<render_operation>,<type>,<antialiasing>,<filter_type>,<x>,<y>
 //filter_types:
@@ -70,25 +71,26 @@ void init_layer(thread_context* context, char* args) {
         
         //cairo_pattern_set_filter(cairo_get_source(led_channel->cr), CAIRO_FILTER_NEAREST);
         //cairo_set_antialias(led_channel->cr, CAIRO_ANTIALIAS_NONE);
-        
+        channel_info * led_channel = get_channel(channel);
+
         if (layer_nr == 0) {
-            cairo_set_operator(led_channels[channel].cr, operation);
-            cairo_pattern_set_filter(cairo_get_source(led_channels[channel].cr), filter_type);
-            cairo_set_antialias(led_channels[channel].cr, antialias);
+            cairo_set_operator(led_channel->cr, operation);
+            cairo_pattern_set_filter(cairo_get_source(led_channel->cr), filter_type);
+            cairo_set_antialias(led_channel->cr, antialias);
         } else {
             layer_nr--;
             if (layer_nr >= 0 && layer_nr < CAIRO_MAX_LAYERS) {
-                if (led_channels[channel].layers[layer_nr].cr == NULL) {
-                    led_channels[channel].layers[layer_nr].surface = cairo_surface_create_similar(led_channels[channel].surface, CAIRO_CONTENT_COLOR_ALPHA, led_channels[channel].width, led_channels[channel].height);
-                    led_channels[channel].layers[layer_nr].cr = cairo_create(led_channels[channel].layers[layer_nr].surface);
+                if (led_channel->layers[layer_nr].cr == NULL) {
+                    led_channel->layers[layer_nr].surface = cairo_surface_create_similar(led_channel->surface, CAIRO_CONTENT_COLOR_ALPHA, led_channel->width, led_channel->height);
+                    led_channel->layers[layer_nr].cr = cairo_create(led_channel->layers[layer_nr].surface);
                 }
-                led_channels[channel].layers[layer_nr].type = type;
-                led_channels[channel].layers[layer_nr].op = operation;
-                led_channels[channel].layers[layer_nr].x = x;
-                led_channels[channel].layers[layer_nr].y = y;
+                led_channel->layers[layer_nr].type = type;
+                led_channel->layers[layer_nr].op = operation;
+                led_channel->layers[layer_nr].x = x;
+                led_channel->layers[layer_nr].y = y;
 
-                cairo_pattern_set_filter(cairo_get_source(led_channels[channel].layers[layer_nr].cr), filter_type);
-                cairo_set_antialias(led_channels[channel].layers[layer_nr].cr, antialias);
+                cairo_pattern_set_filter(cairo_get_source(led_channel->layers[layer_nr].cr), filter_type);
+                cairo_set_antialias(led_channel->layers[layer_nr].cr, antialias);
             } else {
                 fprintf(stderr, "Invalid layer nr %d.\n", layer_nr + 1);
                 return;

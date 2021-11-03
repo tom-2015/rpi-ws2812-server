@@ -3,6 +3,7 @@
 #include <cairo.h>
 #include <cairo-xlib.h>
 #include <X11/Xlib.h>
+#include "screenshot.h"
 
 //take a screen shot
 //take_screen_shot <channel>,<display>,<dst_x>,<dst_y>,<src_x>,<src_y>,<dst_width>,<dst_height>,<src_width>,<src_height>,<interval>
@@ -14,8 +15,9 @@ void take_screenshot(thread_context* context, char* args) {
     args = read_channel(args, &channel);
 
     if (is_valid_2D_channel_number(channel)) {
-        dst_width = led_channels[channel].width;
-        dst_height = led_channels[channel].height;
+        channel_info * led_channel = get_channel(channel);
+        dst_width = led_channel->width;
+        dst_height = led_channel->height;
         src_width = dst_width;
         src_height = dst_height;
     
@@ -49,7 +51,7 @@ void take_screenshot(thread_context* context, char* args) {
         double xScale = dst_width / (double)src_width;
         double yScale = dst_height / (double)src_height;
 
-        cairo_t* cr = led_channels[channel].cr;
+        cairo_t* cr = led_channel->cr;
         
         scr = DefaultScreen(disp);
         

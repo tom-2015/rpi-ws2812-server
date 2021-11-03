@@ -1,3 +1,4 @@
+#include "print_text.h"
 //prints text at x,y
 //pixel_color <channel>,<x>,<y>,<text>,<color>,<font_size>,<font_anti_alias>,<options>,<font>,<operator>
 void print_text(thread_context* context, char* args) {
@@ -24,7 +25,8 @@ void print_text(thread_context* context, char* args) {
 
         if (debug) printf("print text %d,%d,%d,%s,%d,%d,%d,%d,%s,%d\n", channel, x, y, text, color, font_size, font_anti_alias, options, font, cairo_op);
 
-        cairo_t* cr = led_channels[channel].cr;
+        channel_info * led_channel = get_channel(channel);
+        cairo_t* cr = led_channel->cr;
 
         cairo_save(cr);
         cairo_set_operator(cr, cairo_op);

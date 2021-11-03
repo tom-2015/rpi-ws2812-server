@@ -1,3 +1,4 @@
+#include "brightness.h"
 //dims leds
 //brightness <channel>,<brightness>,<start>,<len> (brightness: 0-255)
 void brightness(thread_context * context, char * args){

@@ -1,3 +1,4 @@
+#include "message_board.h"
 #define MESSAGE_DIRECTION_RIGHT_LEFT 0
 #define MESSAGE_DIRECTION_LEFT_RIGHT 1
 #define MESSAGE_DIRECTION_BOTTOM_TOP 2
@@ -35,7 +36,8 @@ void message_board(thread_context* context, char* args) {
 
         if (font[0] == 0) strcpy(font, DEFAULT_FONT);//"enhanced_led_board-7.ttf");
 
-        cairo_t* cr = led_channels[channel].cr;
+        channel_info * led_channel = get_channel(channel);
+        cairo_t* cr = led_channel->cr;
         
         cairo_save(cr);
 
@@ -87,26 +89,26 @@ void message_board(thread_context* context, char* args) {
 
         switch (direction) {
         case MESSAGE_DIRECTION_RIGHT_LEFT:
-            if (width == 0) width = led_channels[channel].width;
+            if (width == 0) width = led_channel->width;
             if (height == 0) height = total_height;
             p_x = x + width + avg_char_width * 2;
             p_y = y;
             break;
         case MESSAGE_DIRECTION_LEFT_RIGHT:
-            if (width == 0) width = led_channels[channel].width;
+            if (width == 0) width = led_channel->width;
             if (height == 0) height = total_height;
             p_x = x - total_width - 1;
             p_y = y;
             break;
         case MESSAGE_DIRECTION_BOTTOM_TOP:
             if (width == 0) width = total_width;
-            if (height == 0) height = led_channels[channel].height;
+            if (height == 0) height = led_channel->height;
             p_x = x;
             p_y = y + total_height;
             break;
         case MESSAGE_DIRECTION_TOP_BOTTOM:
             if (width == 0) width = total_width;
-            if (height == 0) height = led_channels[channel].height;
+            if (height == 0) height = led_channel->height;
             p_x = x;
             p_y = y - total_height;
             break;
@@ -155,7 +157,7 @@ void message_board(thread_context* context, char* args) {
                 case MESSAGE_DIRECTION_RIGHT_LEFT:
                     p_x--;
                     if (p_x < (total_width - x) * -1) {
-                        p_x = x + led_channels[channel].width + avg_char_width;
+                        p_x = x + led_channel->width + avg_char_width;
                         i--;
                     }
                     break;

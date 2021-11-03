@@ -1,3 +1,11 @@
+# Version 6.5
+* Add function to render video from camera directly on a 2D panel
+* Add function to generate ambilight effect from camera/HDMI capture input
+* Improve code by generating header files and splitting files
+* Remove the need to enable audio or 2D graphics at compile time
+* Support for Raspberry Pi Zero 2 W
+* Update documentation
+
 # Version 6.3
 * Fixed bug with SK6812 and 2D panels
 * Update documentation

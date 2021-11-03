@@ -1,8 +1,0 @@
-setup 1,30,7
-init
-do
-   rotate 1,1,2
-   random 1,0,1,RGB
-   render
-   delay 100
-loop

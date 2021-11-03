@@ -1,3 +1,5 @@
+#include "read_jpg.h"
+#include "../jpghelper.h"
 //read JPEG image and put pixel data to LEDS
 //readjpg <channel>,<FILE>,<start>,<len>,<offset>,<OR AND XOR NOT =>,<delay>,<flip_rows>
 //offset = where to start in JPEG file

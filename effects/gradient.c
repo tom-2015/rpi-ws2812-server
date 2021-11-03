@@ -1,3 +1,5 @@
+#include "gradient.h"
+#include <ctype.h>
 //generates a brightness gradient pattern of a color component or brightness level
 //gradient <channel>,<RGBWL>,<startlevel>,<endlevel>,<startled>,<len>
 void gradient (thread_context * context, char * args){

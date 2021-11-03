@@ -1,8 +1,7 @@
-#define AUDIO_CAPTURE_FORMAT SND_PCM_FORMAT_FLOAT_LE
-#define DSP_MODE_NONE 0
-#define DSP_MODE_THRESHOLD 1
-#define DSP_MODE_LOW_PASS 2
-
+#include "record.h"
+#include <pthread.h>
+#include <math.h> 
+#include "../sockets.h"
 //counts number of thresholds reached
 void process_threshold(thread_context * context, float* buffer, unsigned int len) {
     unsigned int i;

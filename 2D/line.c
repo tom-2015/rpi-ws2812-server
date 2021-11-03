@@ -1,3 +1,5 @@
+#include "line.h"
+#include <math.h>
 //draw_line
 //draw_line <channel>,<x1>,<y1>,<x2>,<y2>,<width>,<color>
 void draw_line(thread_context* context, char* args) {
@@ -20,7 +22,8 @@ void draw_line(thread_context* context, char* args) {
 
         if (debug) printf("draw_line %d,%f,%f,%f,%f,%f,%d\n", channel, x1, y1, x2, y2, width, color);
 
-        cairo_t* cr = led_channels[channel].cr;
+        channel_info * led_channel = get_channel(channel);
+        cairo_t* cr = led_channel->cr;
 
         if (!color_empty) {
             set_cairo_color_rgba(cr, color);
@@ -63,11 +66,12 @@ void draw_sharp_line(thread_context* context, char* args) {
 
     if (debug) printf("draw_sharp_line %d,%d,%d,%d,%d,%d\n", channel, x1, y1, x2, y2, color);
 
-    cairo_surface_flush(led_channels[channel].surface);
-    unsigned int* pixels = (unsigned int*)cairo_image_surface_get_data(led_channels[channel].surface); //get pointer to pixel data
-    unsigned int pixel_stride = led_channels[channel].pixel_stride;
-    int width = led_channels[channel].width;
-    int height = led_channels[channel].height;
+    channel_info * led_channel = get_channel(channel);
+    cairo_surface_flush(led_channel->surface);
+    unsigned int* pixels = (unsigned int*)cairo_image_surface_get_data(led_channel->surface); //get pointer to pixel data
+    unsigned int pixel_stride = led_channel->pixel_stride;
+    int width = led_channel->width;
+    int height = led_channel->height;
 
     color = convert_cairo_color(color);
 
@@ -152,6 +156,6 @@ void draw_sharp_line(thread_context* context, char* args) {
         }
     }
 
-    cairo_surface_mark_dirty_rectangle(led_channels[channel].surface, (x1 > x2) ? x2 : x1, (y1 > y2) ? y2 : y1, dx, dy);
+    cairo_surface_mark_dirty_rectangle(led_channel->surface, (x1 > x2) ? x2 : x1, (y1 > y2) ? y2 : y1, dx, dy);
 
 }

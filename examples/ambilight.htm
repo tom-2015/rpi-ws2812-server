@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css"/>
+		<title>WS2812 Server - Ambilight</title>
+	</head>
+<body>
+<p>
+With the ambilight command you can create LED background effect for you TV.
+</p>
+
+<p>
+This example we use a LED strip of 200 LEDs and a HDMI capture card.<br/>
+50 LEDs are mounted on each side (Y) of the TV and 100 LEDs on the top (X).<br/>
+The LEDs must be attached to your TV in the order displayed in the picture below (LED 0 is connected to the Raspberry):<br/>
+<img src="ambilight.png" style="width: 20vw;"><br/>
+<div style="font-size:small;">Picture by <a href="http://commons.wikimedia.org/w/index.php?title=User:Siberex&amp;amp;action=edit&amp;amp;redlink=1" class="new" title="User:Siberex (page does not exist)">Stephan Legachev</a> - <span class="int-own-work" lang="nl">Eigen werk</span>, <a href="https://creativecommons.org/licenses/by/3.0" title="Creative Commons Attribution 3.0">CC BY 3.0</a>, <a href="https://commons.wikimedia.org/w/index.php?curid=17743958">Link</a></div>
+</p>
+
+<p>Optional you can add LEDs at the bottom of your TV, in this case you must specify the type parameter for the ambilight command = 2.</p>
+
+<div class="commands">
+<code>
+setup 1,200,3
+init
+debug 1
+brightness 1,128
+ambilight 1,"/dev/video0", 100, 50, 640, 360
+</code>
+</div>
+
+<p>
+<b>NOTE:</b><br/> 
+The ambilight command has width and height parameters, use these parameters to reduce the video output of the HDMI capture card.<br/>
+The lower the video output of the card the lower the CPU usage of your Raspberry will be and the higher the frame rate.<br/>
+Ideal the image_width and image_height are the same as leds_x and leds_y but sometimes there is a lower limit on frame dimensions the card can output (something like 640x360).<br/>
+</p>
+
+
+<p>For capturing HDMI I'd recommend this type of capture card (you can buy on AliExpress):<br/>
+<img src="hdmi_capture.jpg"/></p>
+
+<p><a href="index.htm">Back</a></p>
+</body>
+</html>

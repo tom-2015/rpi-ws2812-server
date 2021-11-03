@@ -1,4 +1,5 @@
 
+#include "rectangle.h"
 //draw_rectangle
 //draw_rectangle <channel>,<x>,<y>,<width>,<height>,<color>,<border_width>,<border_color>
 void draw_rectangle(thread_context* context, char* args) {
@@ -21,7 +22,8 @@ void draw_rectangle(thread_context* context, char* args) {
 
         if (debug) printf("draw_rectangle %d,%d,%d,%d,%d,%d,%d,%d\n", channel, x, y, width, height, color, border_width, border_color);
 
-        cairo_t* cr = led_channels[channel].cr;
+        channel_info * led_channel = get_channel(channel);
+        cairo_t* cr = led_channel->cr;
 
         if (border_width > 0.0) {
             cairo_set_line_width(cr, border_width);

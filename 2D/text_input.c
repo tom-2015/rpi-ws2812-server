@@ -1,3 +1,6 @@
+#include "text_input.h"
+#include "../sockets.h"
+
 #define MESSAGE_DIRECTION_RIGHT_LEFT 0
 #define MESSAGE_DIRECTION_LEFT_RIGHT 1
 
@@ -39,7 +42,8 @@ void text_input(thread_context* context, char* args) {
 
         if (font[0] == 0) strcpy(font, DEFAULT_FONT);
 
-        cairo_t* cr = led_channels[channel].cr;
+        channel_info * led_channel = get_channel(channel);
+        cairo_t* cr = led_channel->cr;
 
         cairo_save(cr);
 
@@ -84,12 +88,13 @@ void text_input(thread_context* context, char* args) {
         text_buffer[text_buffer_count] = 0;
 
         //set up the socket
-        sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        socket_t sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (sockfd < 0) {
             fprintf(stderr, "ERROR opening socket\n");
             exit(1);
         }
 
+        struct sockaddr_in serv_addr;
         bzero((char*)&serv_addr, sizeof(serv_addr));
 
         serv_addr.sin_family = AF_INET;
@@ -110,13 +115,13 @@ void text_input(thread_context* context, char* args) {
 
             switch (direction) {
             case MESSAGE_DIRECTION_RIGHT_LEFT:
-                if (width == 0) width = led_channels[channel].width;
+                if (width == 0) width = led_channel->width;
                 if (height == 0) height = total_height;
                 p_x = x + width;
                 p_y = y;
                 break;
             case MESSAGE_DIRECTION_LEFT_RIGHT:
-                if (width == 0) width = led_channels[channel].width;
+                if (width == 0) width = led_channel->width;
                 if (height == 0) height = total_height;
                 p_x = x;
                 p_y = y;
@@ -125,6 +130,7 @@ void text_input(thread_context* context, char* args) {
 
             while (!context->end_current_command) {
                 write_to_output("READY\n");
+                struct sockaddr_in cli_addr;                
                 clilen = sizeof(cli_addr);
                 int input_socket = accept(sockfd, (struct sockaddr*)&cli_addr, &clilen); //accept the socket
                 if (input_socket != -1) {
