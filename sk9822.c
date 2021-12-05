@@ -111,7 +111,7 @@ sk9822_return_t sk9822_init(sk9822_t* sk9822)
             }
 
             //init raw buffer for render data
-            channel->raw_size = (channel->count + 1) /* 32*/ + ((channel->count + 15) / 16);
+            channel->raw_size = (channel->count + 1) * 4 + ((channel->count + 15) / 16);
             channel->raw = malloc(channel->raw_size);
             if (!channel->leds)
             {
