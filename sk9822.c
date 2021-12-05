@@ -111,7 +111,7 @@ sk9822_return_t sk9822_init(sk9822_t* sk9822)
             }
 
             //init raw buffer for render data
-            channel->raw_size = (channel->count + 1) * 32 + ((channel->count + 15) / 16);
+            channel->raw_size = (channel->count + 1) /* 32*/ + ((channel->count + 15) / 16);
             channel->raw = malloc(channel->raw_size);
             if (!channel->leds)
             {
@@ -120,7 +120,7 @@ sk9822_return_t sk9822_init(sk9822_t* sk9822)
             }
 
             memset(channel->leds, 0, sizeof(sk9822_led_t) * channel->count);
-            memset(channel->raw, 0, channel->raw_size); //led count * 32 bits + start + end frame
+            memset(channel->raw, 0, channel->raw_size); //led count  + start + end frame
 
             if (!channel->strip_type)
             {
@@ -220,12 +220,13 @@ sk9822_return_t sk9822_render_channel(sk9822_channel_t* channel) {
     memset(&tr, 0, sizeof(struct spi_ioc_transfer));
     tr.tx_buf = (unsigned long)channel->raw;
     tr.rx_buf = 0;
+    tr.bits_per_word = 8;
     tr.len = channel->raw_size; //(channel->count * channel->color_size) + 1 + (channel->count / 8) + 3;
 
     ret = ioctl(channel->spi_fd, SPI_IOC_MESSAGE(1), &tr);
     if (ret < 1)
     {
-        fprintf(stderr, "Can't send spi message %s", channel->spi_dev);
+        fprintf(stderr, "Can't send spi message %s, bytes: %d. ", channel->spi_dev, channel->raw_size);
         return SK9822_ERROR_SPI_TRANSFER;
     }
 
