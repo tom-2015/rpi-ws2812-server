@@ -4,8 +4,8 @@ all: ws2812svr
 #-I/usr/include/glib-2.0 -I/usr/lib/arm-linux-gnueabihf/glib-2.0/include -I/usr/include/pixman-1 -I/usr/include/uuid -I/usr/include/freetype2 -I/usr/include/libpng16 
 #pkg-config --libs --cflags cairo x11
 
-INCL=-I/usr/include `pkg-config --cflags cairo x11 xcb freetype2 alsa`
-LINK=-L/usr/lib -L/usr/local/lib -I/usr/lib/arm-linux-gnueabihf -pthread -lm -lpng -ljpeg `pkg-config --libs cairo x11 xcb freetype2 alsa`
+INCL=-I/usr/include -I/usr/include/arm-linux-gnueabihf `pkg-config --cflags cairo x11 xcb freetype2 alsa`
+LINK=-I/usr/lib -I/usr/local/lib -I/usr/lib/arm-linux-gnueabihf -pthread -lm -lpng -ljpeg `pkg-config --libs cairo x11 xcb freetype2 alsa`
 CC=gcc -g $(INCL)
 
 ifneq (1,$(DEBUG))
@@ -158,7 +158,7 @@ main.o: main.c ws2812svr.h libws2812svr.o
 	$(CC) -c $< -o $@
 
 ws2812svr: main.o dma.o mailbox.o pwm.o pcm.o ws2811.o sk9822.o rpihw.o readpng.o gifdec.o master_slave.o jpghelper.o libws2812svr.o sockets.o sk9822.o ws2811.o gifdec.o effects/rotate.o effects/rainbow.o effects/fill.o effects/brightness.o effects/fade.o effects/blink.o effects/gradient.o effects/add_random.o effects/random_fade_in_out.o effects/chaser.o effects/color_change.o effects/fly_in.o effects/fly_out.o effects/read_png.o effects/read_jpg.o effects/progress.o 2D/set_pixel.o 2D/screenshot.o 2D/cls.o 2D/print_text.o 2D/message_board.o 2D/circle.o 2D/line.o 2D/rectangle.o 2D/image.o 2D/change_layer.o 2D/init_layer.o 2D/text_input.o 2D/camera.o audio/pulses.o audio/record.o audio/light_organ.o audio/vu_meter.o effects/ambilight.o main.o
-	$(CC) $(LINK) $^ -o $@
+	$(CC) $^ -o $@ $(LINK)
 
 clean:
 	-rm *.o
