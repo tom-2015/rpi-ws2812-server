@@ -198,13 +198,13 @@ void slave_listen(thread_context * context, char * args){
 								unsigned int payload_index=0;
 								if (max_leds > get_led_count(channel)) max_leds = get_led_count(channel);
 								if (get_color_size(channel)==3){
-									if (debug) printf("Render 3 colors\n");
+									if (debug) printf("Render 3 colors leds: %d, %d, %d\n", max_leds, payload_size, get_led_count(channel));
 									for (unsigned int i=0; i<max_leds;i++){
 										ledstring[i].color = (unsigned int)payload[payload_index++] + ((unsigned int)payload[payload_index++] << 8) + ((unsigned int)payload[payload_index++] << 16);
 										//payload_index+=3;
 									}
 								}else{
-									if (debug) printf("Render 4 colors\n");
+									if (debug) printf("Render 4 colors leds: %d, %d, %d\n", max_leds, payload_size, get_led_count(channel));
 									for (unsigned int i=0; i<max_leds;i++){
 										ledstring[i].color = ((unsigned int*)payload)[i]; // color_rgbw(payload[payload_index], payload[payload_index+1], payload[payload_index+2], payload[payload_index+3]);
 										//payload_index+=4;
