@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css"/>
+		<title>WS2812 Server - Master slave fade</title>
+	</head>
+<body>
+<p>
+This example uses one master Raspberry pi 3 connected with 3 slave Raspberry Pi Zero W.<br/>
+Each Raspberry Zero has connected 50 LEDs, the master 300 LEDs and they will all fade on/off at the same time using synchronized threads.<br/>
+The slave Raspberry Pis are connected with wifi and have IP address 192.168.0.81, 192.168.0.82, 192.168.0.83
+</p>
+
+<p>First initialize the slaves with this code:</p>
+<div class="commands">
+<code>
+setup 1,50,5
+init
+do
+    slave_listen 1,8000
+loop    
+</code>
+</div>
+
+<p>Now run this code on the master.<br/>
+300 LEDs connected to the master are setup in channel 1.<br/>
+The other LEDs are setup in channel 2-4 as a slave virtual channel, connecting to each Raspberry Pi Zero.
+</p>
+<div class="commands">
+<code>
+setup 1,300,3
+setup 2,50,100, "192.168.0.81", 8000
+setup 3,50,100, "192.168.0.82", 8000
+setup 4,50,100, "192.168.0.83", 8000
+init
+
+thread_start 1
+    fill 1,FF0000
+    do
+        fade 1, 0, 255, 40
+        signal_thread 2,1
+        signal_thread 3,1
+        signal_thread 4,1
+        fade 1, 255, 0, 40
+        signal_thread 2,1
+        signal_thread 3,1
+        signal_thread 4,1
+    loop
+thread_stop
+
+thread_start 2
+    fill 2,FF0000
+    do
+        fade 2, 0, 255, 40
+        wait_signal
+        fade 2, 255, 0, 40
+        wait_signal
+    loop
+thread_stop
+
+thread_start 3
+    fill 3,FF0000
+    do
+        fade 3, 0, 255, 40
+        wait_signal
+        fade 3, 255, 0, 40
+        wait_signal
+    loop
+thread_stop
+
+thread_start 4
+    fill 4, FF0000
+    do
+        fade 4, 0, 255, 40
+        wait_signal
+        fade 4, 255, 0, 40
+        wait_signal
+    loop
+thread_stop
+</code>
+</div>
+
+<p><a href="index.htm">Back</a></p>
+</body>
+</html>
