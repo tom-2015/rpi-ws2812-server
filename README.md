@@ -27,16 +27,16 @@ You can use this with the WS2811, WS2812, SK6812, SK9822 chips.
 
 # Installation
 
-On newer Raspbian (>=Jessie) operating system the audio output is activated by default.
-You need to disable default audio output first (if you want to use WS2812 or SK6812 chips)!
+If you are using the Raspberry Pi OS with desktop enabled the audio output is activated by default.
+This audio interface uses the PCM/PWM module which is required to drive the LEDs (ws2812 / SK6812) so you need to disable default audio output first.
 You can do this by blacklisting the sound module:
 ```
 echo "blacklist snd_bcm2835" | sudo tee /etc/modprobe.d/snd-blacklist.conf
 ```
 
-Also in comment out the `audio=on` parameter in `/boot/config.txt`
+If this doesn't work, also comment out the `dtparam=audio=on` parameter in `/boot/config.txt`
 ```
-sed "s/^dtparam=audio=on/#dtparam=audio=on/g" /boot/config.txt
+sudo sed -i "s/^dtparam=audio=on/#dtparam=audio=on/g" /boot/config.txt
 ```
 
 Standard installation with support for all features use the following commands:
