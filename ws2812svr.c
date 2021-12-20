@@ -632,7 +632,8 @@ char * read_color_arg_empty(char* args, unsigned int* out_color, unsigned int co
 
 //reads a hex brightness value
 char * read_brightness(char * args, unsigned int * brightness){
-    unsigned int idx=0;
+	return read_uint(args, brightness);
+    /*unsigned int idx=0;
     unsigned char str_brightness[2];
 	
 	if (args!=NULL && *args!=0){
@@ -645,7 +646,7 @@ char * read_brightness(char * args, unsigned int * brightness){
 		}
 		if (idx!=0) * brightness = (hextable[str_brightness[0]] << 4) + hextable[str_brightness[1]];
 	}
-    return args;
+    return args;*/
 }
 
 char * read_operation(char * args, char * op){

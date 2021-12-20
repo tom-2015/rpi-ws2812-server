@@ -55,8 +55,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-#include "png.h"        /* libpng header; includes zlib.h */
 #include "readpng.h"    /* typedefs, common macros, public prototypes */
 
 /* future versions of libpng will provide this macro: */
@@ -65,12 +65,12 @@
 #endif
 
 
-static png_structp png_ptr = NULL;
+/*static png_structp png_ptr = NULL;
 static png_infop info_ptr = NULL;
 
 png_uint_32  width, height;
 int  bit_depth, color_type;
-uch  *image_data = NULL;
+uch  *image_data = NULL;*/
 
 
 void readpng_version_info(void)
@@ -82,10 +82,12 @@ void readpng_version_info(void)
 
 /* return value = 0 for success, 1 for bad sig, 2 for bad IHDR, 4 for no mem */
 
-int readpng_init(FILE *infile, ulg *pWidth, ulg *pHeight)
+int readpng_init(FILE *infile, png_object * png)
 {
     uch sig[8];
+    png_uint_32  width, height;
 
+    memset(png, 0, sizeof(png_object));
 
     /* first do a quick check that the file really is a PNG image; could
      * have used slightly more general png_sig_cmp() function instead */
@@ -97,13 +99,13 @@ int readpng_init(FILE *infile, ulg *pWidth, ulg *pHeight)
 
     /* could pass pointers to user-defined error handlers instead of NULLs: */
 
-    png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-    if (!png_ptr)
+    png->png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    if (!png->png_ptr)
         return 4;   /* out of memory */
 
-    info_ptr = png_create_info_struct(png_ptr);
-    if (!info_ptr) {
-        png_destroy_read_struct(&png_ptr, NULL, NULL);
+    png->info_ptr = png_create_info_struct(png->png_ptr);
+    if (!png->info_ptr) {
+        png_destroy_read_struct(&png->png_ptr, NULL, NULL);
         return 4;   /* out of memory */
     }
 
@@ -116,27 +118,53 @@ int readpng_init(FILE *infile, ulg *pWidth, ulg *pHeight)
     /* setjmp() must be called in every function that calls a PNG-reading
      * libpng function */
 
-    if (setjmp(png_jmpbuf(png_ptr))) {
-        png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
+    if (setjmp(png_jmpbuf(png->png_ptr))) {
+        readpng_cleanup(png);
         return 2;
     }
 
 
-    png_init_io(png_ptr, infile);
-    png_set_sig_bytes(png_ptr, 8);  /* we already read the 8 signature bytes */
+    png_init_io(png->png_ptr, infile);
+    png_set_sig_bytes(png->png_ptr, 8);  /* we already read the 8 signature bytes */
 
-    png_read_info(png_ptr, info_ptr);  /* read all PNG info up to image data */
+    png_read_info(png->png_ptr, png->info_ptr);  /* read all PNG info up to image data */
 
 
     /* alternatively, could make separate calls to png_get_image_width(),
      * etc., but want bit_depth and color_type for later [don't care about
      * compression_type and filter_type => NULLs] */
 
-    png_get_IHDR(png_ptr, info_ptr, &width, &height, &bit_depth, &color_type,
-      NULL, NULL, NULL);
-    *pWidth = width;
-    *pHeight = height;
+    png_get_IHDR(png->png_ptr, png->info_ptr, &png->width, &png->height, &png->bit_depth, &png->color_type, NULL, NULL, NULL);
+    
+    png->rowbytes = png_get_rowbytes(png->png_ptr, png->info_ptr);
+    png->channels = (int)png_get_channels(png->png_ptr, png->info_ptr);
 
+
+    if (png_get_valid(png->png_ptr, png->info_ptr, PNG_INFO_bKGD)){
+        png_color_16p pBackground;
+        png_get_bKGD(png->png_ptr, png->info_ptr, &pBackground);
+
+        png->has_background=true;
+        /* however, it always returns the raw bKGD data, regardless of any
+        * bit-depth transformations, so check depth and adjust if necessary */
+
+        if (png->bit_depth == 16) {
+            png->background_red   = pBackground->red   >> 8;
+            png->background_green = pBackground->green >> 8;
+            png-> background_blue  = pBackground->blue  >> 8;
+        } else if (png->color_type == PNG_COLOR_TYPE_GRAY && png->bit_depth < 8) {
+            if (png->bit_depth == 1)
+                png->background_red = png->background_green = png->background_blue = pBackground->gray? 255 : 0;
+            else if (png->bit_depth == 2)
+                png->background_red = png->background_green = png->background_blue = (255/3) * pBackground->gray;
+            else /* bit_depth == 4 */
+                png->background_red = png->background_green = png->background_blue = (255/15) * pBackground->gray;
+        } else {
+            png->background_red   = (uch)pBackground->red;
+            png->background_green = (uch)pBackground->green;
+            png->background_blue  = (uch)pBackground->blue;
+        }
+    }
 
     /* OK, that's all we need for now; return happy */
 
@@ -149,13 +177,11 @@ int readpng_init(FILE *infile, ulg *pWidth, ulg *pHeight)
 /* returns 0 if succeeds, 1 if fails due to no bKGD chunk, 2 if libpng error;
  * scales values to 8-bit if necessary */
 
-int readpng_get_bgcolor(uch *red, uch *green, uch *blue)
+/*int readpng_get_bgcolor(uch *red, uch *green, uch *blue)
 {
     png_color_16p pBackground;
 
 
-    /* setjmp() must be called in every function that calls a PNG-reading
-     * libpng function */
 
     if (setjmp(png_jmpbuf(png_ptr))) {
         png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
@@ -166,15 +192,9 @@ int readpng_get_bgcolor(uch *red, uch *green, uch *blue)
     if (!png_get_valid(png_ptr, info_ptr, PNG_INFO_bKGD))
         return 1;
 
-    /* it is not obvious from the libpng documentation, but this function
-     * takes a pointer to a pointer, and it always returns valid red, green
-     * and blue values, regardless of color_type: */
-
     png_get_bKGD(png_ptr, info_ptr, &pBackground);
 
 
-    /* however, it always returns the raw bKGD data, regardless of any
-     * bit-depth transformations, so check depth and adjust if necessary */
 
     if (bit_depth == 16) {
         *red   = pBackground->red   >> 8;
@@ -185,7 +205,7 @@ int readpng_get_bgcolor(uch *red, uch *green, uch *blue)
             *red = *green = *blue = pBackground->gray? 255 : 0;
         else if (bit_depth == 2)
             *red = *green = *blue = (255/3) * pBackground->gray;
-        else /* bit_depth == 4 */
+        else // bit_depth == 4 
             *red = *green = *blue = (255/15) * pBackground->gray;
     } else {
         *red   = (uch)pBackground->red;
@@ -194,25 +214,25 @@ int readpng_get_bgcolor(uch *red, uch *green, uch *blue)
     }
 
     return 0;
-}
-
+}*/
 
 
 
 /* display_exponent == LUT_exponent * CRT_exponent */
 
-uch *readpng_get_image(double display_exponent, int *pChannels, ulg *pRowbytes)
+//
+uch *readpng_get_image(png_object * png, double display_exponent)
 {
     double  gamma;
-    png_uint_32  i, rowbytes;
+    png_uint_32  i;
     png_bytepp  row_pointers = NULL;
 
 
     /* setjmp() must be called in every function that calls a PNG-reading
      * libpng function */
 
-    if (setjmp(png_jmpbuf(png_ptr))) {
-        png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
+    if (setjmp(png_jmpbuf(png->png_ptr))) {
+        png_destroy_read_struct(&png->png_ptr, &png->info_ptr, NULL);
         return NULL;
     }
 
@@ -221,17 +241,16 @@ uch *readpng_get_image(double display_exponent, int *pChannels, ulg *pRowbytes)
      * transparency chunks to full alpha channel; strip 16-bit-per-sample
      * images to 8 bits per sample; and convert grayscale to RGB[A] */
 
-    if (color_type == PNG_COLOR_TYPE_PALETTE)
-        png_set_expand(png_ptr);
-    if (color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8)
-        png_set_expand(png_ptr);
-    if (png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS))
-        png_set_expand(png_ptr);
-    if (bit_depth == 16)
-        png_set_strip_16(png_ptr);
-    if (color_type == PNG_COLOR_TYPE_GRAY ||
-        color_type == PNG_COLOR_TYPE_GRAY_ALPHA)
-        png_set_gray_to_rgb(png_ptr);
+    if (png->color_type == PNG_COLOR_TYPE_PALETTE)
+        png_set_expand(png->png_ptr);
+    if (png->color_type == PNG_COLOR_TYPE_GRAY && png->bit_depth < 8)
+        png_set_expand(png->png_ptr);
+    if (png_get_valid(png->png_ptr, png->info_ptr, PNG_INFO_tRNS))
+        png_set_expand(png->png_ptr);
+    if (png->bit_depth == 16)
+        png_set_strip_16(png->png_ptr);
+    if (png->color_type == PNG_COLOR_TYPE_GRAY || png->color_type == PNG_COLOR_TYPE_GRAY_ALPHA)
+        png_set_gray_to_rgb(png->png_ptr);
 
 
     /* unlike the example in the libpng documentation, we have *no* idea where
@@ -245,49 +264,49 @@ uch *readpng_get_image(double display_exponent, int *pChannels, ulg *pRowbytes)
     /* all transformations have been registered; now update info_ptr data,
      * get rowbytes and channels, and allocate image memory */
 
-    png_read_update_info(png_ptr, info_ptr);
+    png_read_update_info(png->png_ptr, png->info_ptr);
 
-    *pRowbytes = rowbytes = png_get_rowbytes(png_ptr, info_ptr);
-    *pChannels = (int)png_get_channels(png_ptr, info_ptr);
-
-    if ((image_data = (uch *)malloc(rowbytes*height)) == NULL) {
-        png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
-        return NULL;
-    }
-    if ((row_pointers = (png_bytepp)malloc(height*sizeof(png_bytep))) == NULL) {
-        png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
-        free(image_data);
-        image_data = NULL;
+    if ((png->image_data = (uch *)malloc(png->rowbytes*png->height)) == NULL) {
+        readpng_cleanup(png);
         return NULL;
     }
 
-    Trace((stderr, "readpng_get_image:  channels = %d, rowbytes = %ld, height = %ld\n", *pChannels, rowbytes, height));
-
-
+    if ((row_pointers = (png_bytepp)malloc(png->height*sizeof(png_bytep))) == NULL) {
+        readpng_cleanup(png);
+        return NULL;
+    }
     /* set the individual row_pointers to point at the correct offsets */
 
-    for (i = 0;  i < height;  ++i)
-        row_pointers[i] = image_data + i*rowbytes;
+    for (i = 0;  i < png->height;  ++i)
+        row_pointers[i] = png->image_data + i*png->rowbytes;
 
 
     /* now we can go ahead and just read the whole image */
 
-    png_read_image(png_ptr, row_pointers);
+    png_read_image(png->png_ptr, row_pointers);
 
 
     /* and we're done!  (png_read_end() can be omitted if no processing of
      * post-IDAT text/time/etc. is desired) */
 
     free(row_pointers);
-    row_pointers = NULL;
 
-    png_read_end(png_ptr, NULL);
+    png_read_end(png->png_ptr, NULL);
 
-    return image_data;
+    return png->image_data;
 }
 
 
-void readpng_cleanup(int free_image_data)
+void readpng_cleanup(png_object * png){
+    if (png->image_data!=NULL){
+        free(png->image_data);
+    }
+    if (png->png_ptr!=NULL || png->info_ptr!=NULL){
+        png_destroy_read_struct(&png->png_ptr, &png->info_ptr, NULL);
+    }
+}
+
+/*void readpng_cleanup(int free_image_data)
 {
     if (free_image_data && image_data) {
         free(image_data);
@@ -299,4 +318,4 @@ void readpng_cleanup(int free_image_data)
         png_ptr = NULL;
         info_ptr = NULL;
     }
-}
+}*/

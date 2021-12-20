@@ -20,6 +20,7 @@ Read the change log to see what is new:
 [CHANGES.md](https://github.com/tom-2015/rpi-ws2812-server/blob/master/CHANGES.md)
 
 Support for Master-Slave
+
 ![master-slave](https://github.com/tom-2015/rpi-ws2812-server/blob/master/examples/master_slave.png)
 
 # Supported chips

@@ -184,12 +184,13 @@ signal_thread <thread_id>, <wait until thread is waiting for the signal>
 * `rotate` command moves all color values of 1 channel
 
 ```
-rotate <channel>,<places>,<direction>,<RRGGBB>
+rotate <channel>,<places>,<direction>,<RRGGBB>,<brightness>
 
 # <channel>     Channel to rotate (default 1)
 # <places>      Number of places to move each color value (default 1)
 # <direction>   Direction (0 or 1) for forward and backwards rotating (default 0)
 # <RRGGBB>      First led(s) get this color instead of the color of the last led
+# <brightness>  Brightness for new color (previous argument) 0-255
 ```
 
 * `rainbow` command creates rainbows or gradient fills

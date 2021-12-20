@@ -46,9 +46,8 @@ void readpng(thread_context * context,char * args){
 	
 	if (is_valid_channel_number(channel)){
 		FILE * infile;		/* source file */
-		ulg image_width, image_height, image_rowbytes;
-		int image_channels,rc;
-		uch *image_data;
+		png_object png;
+		int rc;
 		uch bg_red=0, bg_green=0, bg_blue=0;
 
 		if (start<0) start=0;
@@ -62,7 +61,7 @@ void readpng(thread_context * context,char * args){
 			return;
 		}
 		
-		if ((rc = readpng_init(infile, &image_width, &image_height)) != 0) {
+		if ((rc = readpng_init(infile, &png)) != 0) {
             switch (rc) {
                 case 1:
                     fprintf(stderr, "[%s] is not a PNG file: incorrect signature.\n", filename);
@@ -83,12 +82,9 @@ void readpng(thread_context * context,char * args){
 		
 		//get the background color (for transparency support)
 		if (backcolortype==0){
-			if (readpng_get_bgcolor(&bg_red, &bg_green, &bg_blue) > 1){
-				readpng_cleanup(TRUE);
-				fclose(infile);
-				fprintf(stderr, "libpng error while checking for background color\n");
-				return;
-			}
+			bg_red = png.background_red;
+			bg_green = png.background_green;
+			bg_blue = png.background_blue;
 		}else{
 			bg_red = get_red(backcolor);
 			bg_green = get_green(backcolor);
@@ -96,7 +92,7 @@ void readpng(thread_context * context,char * args){
 		}
 		
 		//read entire image data
-		image_data = readpng_get_image(2.2, &image_channels, &image_rowbytes);
+		uch * image_data = readpng_get_image(& png, 2.2);
 		
 		if (image_data) {
 			int row=0, led_idx=0, png_idx=0, i=0;
@@ -110,15 +106,15 @@ void readpng(thread_context * context,char * args){
 			
 			led_idx=start; //start at this led index
 			//load all pixels
-			for (row = 0;  row < image_height; row++) {
-				src = image_data + row * image_rowbytes;
+			for (row = 0;  row < png.height; row++) {
+				src = image_data + row * png.rowbytes;
 				
-				for (i = image_width;  i > 0;  --i) {
+				for (i = png.width;  i > 0;  --i) {
 					r = *src++;
 					g = *src++;
 					b = *src++;
 					
-					if (image_channels != 3){
+					if (png.channels != 3){
 						a = *src++;
 						if (backcolortype!=2){
 							r = alpha_component(r, bg_red,a);
@@ -127,7 +123,7 @@ void readpng(thread_context * context,char * args){
 						}
 					}					
 					if (png_idx>=offset){
-						if (debug) printf("led %d= r %d,g %d,b %d,a %d, PNG channels=%d, PNG idx=%d\n", led_idx, r, g, b, a,image_channels,png_idx);
+						if (debug) printf("led %d= r %d,g %d,b %d,a %d, PNG channels=%d, PNG idx=%d\n", led_idx, r, g, b, a,png.channels,png_idx);
 						if (led_idx < start + len){
 							int fill_color;
 							if (backcolortype==2 && color_size>3){
@@ -138,7 +134,7 @@ void readpng(thread_context * context,char * args){
 							
 							if (flip_rows){ //this will horizontaly flip the row
 								if (row_index & 1){
-									led_idx = start + image_width * row_index + (image_width - i);
+									led_idx = start + png.width * row_index + (png.width - i);
 								}
 							}
 		
@@ -169,7 +165,7 @@ void readpng(thread_context * context,char * args){
 								render_channel(channel);
 								usleep(delay * 1000);
 							}else{
-								row = image_height; //exit reading
+								row = png.height; //exit reading
 								i=0;
 								break;
 							}
@@ -181,9 +177,9 @@ void readpng(thread_context * context,char * args){
 				if (context->end_current_command) break;
 				row_index++;
 			}
-			readpng_cleanup(TRUE);
+			readpng_cleanup(&png);
 		}else{
-			readpng_cleanup(FALSE);
+			readpng_cleanup(&png);
 			fprintf(stderr, "Unable to decode PNG image\n");
 		}
 		fclose(infile);

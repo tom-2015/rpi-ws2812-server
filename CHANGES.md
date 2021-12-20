@@ -1,3 +1,11 @@
+
+# Version 6.8
+* make read_png function work with multiple threads at same time
+* all brightness arguments now expect number 0-255
+
+# Version 6.7
+* Fix bug with SPI rendering for SK9822
+
 # Version 6.5
 * Add function to render video from camera directly on a 2D panel
 * Add function to generate ambilight effect from camera/HDMI capture input

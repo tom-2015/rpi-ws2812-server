@@ -52,6 +52,7 @@ int find_random_free_led_index(fade_in_out_led_status * led_status, unsigned int
 //delay = delay between changes in brightness
 //step = ammount of brightness to increase between delays
 //inc_dec = if 1 brightness will start at <brightness> and decrease to initial brightness of the led, else it will start low and go up
+// sync_delay = random delay to make the fading appear out of sync. set to 0 to make all LEDs start fade in/out at the same time
 //start  = start at led position
 //len  = stop at led position
 //color  = use specific color, after blink effect color will return to initial

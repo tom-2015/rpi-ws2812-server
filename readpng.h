@@ -1,3 +1,8 @@
+#ifndef READ_PNG_H
+#define READ_PNG_H
+
+#include "png.h"        /* libpng header; includes zlib.h */
+#include <stdbool.h>
 /*---------------------------------------------------------------------------
 
    rpng - simple PNG display program                              readpng.h
@@ -73,15 +78,34 @@ typedef unsigned char   uch;
 typedef unsigned short  ush;
 typedef unsigned long   ulg;
 
+typedef struct {
+   png_uint_32 width;
+   png_uint_32 height; 
+   int bit_depth; 
+   int color_type; 
+   bool has_background;
+   uch background_red;
+   uch background_green;
+   uch background_blue;
+   int channels;
+   ulg rowbytes;
+   png_structp png_ptr; 
+   png_infop info_ptr;
+   uch *image_data;
+} png_object;
 
 /* prototypes for public functions in readpng.c */
 
 void readpng_version_info(void);
 
-int readpng_init(FILE *infile, ulg *pWidth, ulg *pHeight);
+//initializes a new png object structure contains all info needed to read png image
+int readpng_init(FILE *infile, png_object * png);
 
-int readpng_get_bgcolor(uch *bg_red, uch *bg_green, uch *bg_blue);
+//int readpng_init(FILE *infile, ulg *pWidth, ulg *pHeight);
 
-uch *readpng_get_image(double display_exponent, int *pChannels, ulg *pRowbytes);
+//int readpng_get_bgcolor(uch *bg_red, uch *bg_green, uch *bg_blue);
 
-void readpng_cleanup(int free_image_data);
+uch *readpng_get_image(png_object * png, double display_exponent);
+
+void readpng_cleanup(png_object * png);
+#endif
