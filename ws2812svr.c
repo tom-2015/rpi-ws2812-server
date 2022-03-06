@@ -1343,11 +1343,12 @@ void print_settings(){
 
 //sends the buffer to the leds
 //render <channel>,0,AABBCCDDEEFF...
+// if channel = -1 or not used, all initialized channels will be rendered
 //optional the colors for leds:
 //AABBCC are RGB colors for first led
 //DDEEFF is RGB for second led,...
 void render(thread_context * context, char * args){
-	int channel=0;
+	int channel=-1;
 	int r,g,b,w;
 	int size;
     int start;
@@ -1358,7 +1359,7 @@ void render(thread_context * context, char * args){
     if (args!=NULL){
 		args = read_channel(args, & channel); //read_val(args, & channel, MAX_VAL_LEN);
 		//channel = channel-1;
-        if (is_valid_channel_number(channel)){
+        if (channel!=-1 && is_valid_channel_number(channel)){
             if (*args!=0){
                 args = read_int(args, & start); //read start position
                 while (*args!=0 && (*args==' ' || *args==',')) args++; //skip white space
@@ -1366,7 +1367,7 @@ void render(thread_context * context, char * args){
                 if (debug) printf("Render channel %d selected start at %d leds %d\n", channel, start, get_led_count(channel));
                 
                 size = strlen(args);
-                int led_count = get_led_count(channel);            
+                int led_count = get_led_count(channel);
                 int led_index = start % led_count;
                 int color_count = get_color_size(channel);
 				ws2811_led_t* leds = get_led_string(channel);
@@ -1384,6 +1385,13 @@ void render(thread_context * context, char * args){
 	
 	if (is_valid_channel_number(channel)){
 		render_channel(channel);
+	}else if (channel ==-1){ //render all channels
+		for (int i = 0; i < MAX_CHANNELS; i++)
+		{
+			if (is_valid_channel_number(i)){
+				render_channel(i);
+			}
+		}
 	}else{
 		fprintf(stderr,ERROR_INVALID_CHANNEL);
 	}
@@ -1724,6 +1732,7 @@ void signal_thread(thread_context * context, char * args){
 	}
 }
 
+//wait for signal from other thread
 void wait_signal(thread_context * context, char * args){
 	if (debug) printf("Waiting for signal to continue in thread %d.\n", context->id);
 	if (context->id==0) {
@@ -1736,6 +1745,21 @@ void wait_signal(thread_context * context, char * args){
 	context->waiting_signal=0;
 	pthread_mutex_unlock (&context->sync_mutex);
 	if (debug) printf("Signal received in thread %d.\n", context->id);
+}
+
+//waits until target thread is ready for receiving a signal (the other thread is stopped at a wait_signal command)
+void wait_ready_signal(thread_context * context, char * args){
+	int thread_index = 1;
+	int wait_for_thread = 0;
+	args = read_int(args, & thread_index);
+
+	if (thread_index > 0 && thread_index <= MAX_THREADS){
+		thread_context	* t_context = & threads[thread_index];
+		if (debug) printf("Wait ready for signal %d from %d.\n", thread_index, context->id);
+		while (!t_context->waiting_signal) usleep(1000);
+	}else{
+		fprintf(stderr, "Invalid thread id %d\n", thread_index);
+	}
 }
 
 //prints text on output, for debugging large scripts
@@ -1927,6 +1951,8 @@ void execute_command(thread_context * context, char * command_line){
 			wait_signal(context, arg);
 		}else if (strcmp(command, "signal_thread") == 0) {
 			signal_thread(context, arg);
+		}else if (strcmp(command, "wait_ready_signal")==0){
+			wait_ready_signal(context, arg);
 		}else if (strcmp(command, "echo")==0){
 			echo(context, arg);
 		}else if (strcmp(command, "debug") == 0) {
