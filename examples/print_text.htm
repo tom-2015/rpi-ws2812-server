@@ -11,7 +11,7 @@ This command prints text on an 8x32 display.
 </p>
 
 <div class="commands">
-<code>
+	<code>
 setup 1,256,3
 init
 brightness 1,32
@@ -26,6 +26,21 @@ render
 <p>
 <b>NOTE:</b> Put double quotes around your text, use \" if you need a double quote in your text. For special characters use UTF-8 encoding and a font that supports them.
 </p>
+
+The next example will print text with gradient colored letters, using extra layer and a background picture.
+<div class="commands">
+<code>
+setup 1,256,3
+init
+brightness 1, 32
+config_2D 1,32,8,3,32,8
+draw_image 1,examples/red-green.png
+init_layer 1,1,8,0,1,0
+change_layer 1,1
+print_text 1,0,8,"HELLO", FF0000,8,1,0,"enhanced_led_board-7.ttf"
+render
+</code>
+</div>
 
 <p><a href="index.htm">Back</a></p>
 </body>
