@@ -1,4 +1,10 @@
 
+# Version 7.0
+* render command will now render ALL channels if no channel argument is used or 0 as channel number is used (for backwards compatibility)
+
+# Version 6.9
+* Add new command wait_ready_signal.
+
 # Version 6.8
 * make read_png function work with multiple threads at same time
 * all brightness arguments now expect number 0-255
