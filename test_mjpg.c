@@ -16,7 +16,6 @@
 #include <linux/v4l2-common.h>
 #include <linux/v4l2-controls.h>
 #include <linux/videodev2.h>
-#include <libv4lconvert.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
@@ -53,93 +52,6 @@ METHODDEF(void) my_error_exit(j_common_ptr cinfo) {
 void decompress_jpg(char* buffer, int size);
 
 
-
-#define WORD unsigned short
-#define DWORD unsigned int
-#define LONG unsigned long
-
-#pragma pack(push, 1)
-
-typedef struct tagBITMAPFILEHEADER
-{
-    WORD bfType;  //specifies the file type
-    DWORD bfSize;  //specifies the size in bytes of the bitmap file
-    WORD bfReserved1;  //reserved; must be 0
-    WORD bfReserved2;  //reserved; must be 0
-    DWORD bfOffBits;  //specifies the offset in bytes from the bitmapfileheader to the bitmap bits
-}BITMAPFILEHEADER;
-
-#pragma pack(pop)
-
-#pragma pack(push, 1)
-
-typedef struct tagBITMAPINFOHEADER
-{
-    DWORD biSize;  //specifies the number of bytes required by the struct
-    DWORD biWidth;  //specifies width in pixels
-    DWORD biHeight;  //specifies height in pixels
-    WORD biPlanes;  //specifies the number of color planes, must be 1
-    WORD biBitCount;  //specifies the number of bits per pixel
-    DWORD biCompression;  //specifies the type of compression
-    DWORD biSizeImage;  //size of image in bytes
-    DWORD biXPelsPerMeter;  //number of pixels per meter in x axis
-    DWORD biYPelsPerMeter;  //number of pixels per meter in y axis
-    DWORD biClrUsed;  //number of colors used by the bitmap
-    DWORD biClrImportant;  //number of colors that are important
-}BITMAPINFOHEADER;
-
-#pragma pack(pop)
-
-void write_bitmap(unsigned int width, unsigned int height, unsigned char * buffer, unsigned int frame_nr){
-    BITMAPFILEHEADER bitmapFileHeader = {0};  //our bitmap file header
-    BITMAPINFOHEADER bitmapInfo = {0};
-    unsigned char fill[4]={0,0,0,0};
-    unsigned char filename[32];
-
-    bitmapFileHeader.bfType = 0x4D42;
-    bitmapFileHeader.bfSize = width * height * 3 + sizeof(BITMAPINFOHEADER) + sizeof(BITMAPFILEHEADER);
-    bitmapFileHeader.bfOffBits = sizeof(BITMAPINFOHEADER);
-
-    bitmapInfo.biSize = sizeof(BITMAPINFOHEADER);
-    bitmapInfo.biWidth = width;
-    bitmapInfo.biHeight = height;
-    bitmapInfo.biPlanes = 1;
-    bitmapInfo.biBitCount = 24;
-    bitmapInfo.biCompression = 0;
-    bitmapInfo.biSizeImage = width * height * 3;
-    bitmapInfo.biXPelsPerMeter = 0;
-    bitmapInfo.biYPelsPerMeter = 0;
-    bitmapInfo.biClrUsed = 0;
-    bitmapInfo.biClrImportant = 0;
-
-
-    FILE* outfile;
-
-    sprintf(filename, "test_%d.bmp", frame_nr);
-
-    if ((outfile = fopen(filename, "wb")) == NULL) {
-        fprintf(stderr, "Error: can't open file\n");
-        return;
-    }
-
-    fwrite(&bitmapFileHeader, sizeof(BITMAPFILEHEADER), 1, outfile);
-    fwrite(&bitmapInfo, sizeof(BITMAPINFOHEADER), 1, outfile);
-
-    int i;
-
-    for (i=0;i<height;i++){
-        fwrite(buffer, width * 3, 1, outfile);
-        if ((width * 3) % 4 !=0){
-            fwrite(fill, (width * 3) % 4, 1, outfile);
-        }
-        buffer +=width;
-    }
-
-    fclose(outfile);
-
-}
-
-
 int main(int argc, char* argv[]) {
 
     // 1.  Open the device
@@ -160,67 +72,15 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    if (capability.capabilities & V4L2_CAP_VIDEO_CAPTURE){
-        printf("Video capture device.\n");
-    }else if (capability.capabilities & V4L2_CAP_VIDEO_CAPTURE_MPLANE){
-        printf("Multiplanar video capture device NOT SUPPORTED.\n");
-        return 0;
-    }else if (capability.capabilities & V4L2_CAP_VIDEO_OUTPUT_MPLANE){
-        printf("Multiplanar video output.\n");
-        return 0;
-    }else if (capability.capabilities & V4L2_CAP_VIDEO_M2M_MPLANE){
-        printf("Multiplanar 2.\n");
-        return 0;
-    }
-
     printf("2\n");
-
-    //
-    //https://gist.github.com/jayrambhia/5866483
-    printf("Supported formats:\n");
-    struct v4l2_fmtdesc fmtdesc = {0};
-    fmtdesc.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    char fourcc[5] = {0};
-    char c, e;
-    
-    unsigned int src_pixel_format;
-    while (0 == ioctl(fd, VIDIOC_ENUM_FMT, &fmtdesc))
-    {
-            strncpy(fourcc, (char *)&fmtdesc.pixelformat, 4);
-            //if (fmtdesc.pixelformat == V4L2_PIX_FMT_SGRBG10)
-            //    support_grbg10 = 1;
-            c = fmtdesc.flags & 1? 'C' : ' ';
-            e = fmtdesc.flags & 2? 'E' : ' ';
-            printf("  %s: %c%c %s\n", fourcc, c, e, fmtdesc.description);
-            if (fmtdesc.index==0) {
-                src_pixel_format = fmtdesc.pixelformat;
-                //memcpy(&src_format, &fmtdesc.pixelformat, sizeof(struct v4l2_format));
-            }
-            fmtdesc.index++;
-    }
-
-
-    //https://cpp.hotexamples.com/examples/-/-/v4lconvert_create/cpp-v4lconvert_create-function-examples.html
-
-    /*struct v4lconvert_data * conv_lib;
-    conv_lib = v4lconvert_create(fd);
-
-    if(!conv_lib) {
-		perror("v4lconvert_create");
-        return 1;
-    }*/
-
-    src_pixel_format = V4L2_PIX_FMT_RGB24;
 
     // 3. Set Image format
     struct v4l2_format imageFormat;
     imageFormat.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    imageFormat.fmt.pix.width = 1920;
-    imageFormat.fmt.pix.height = 1080;
-    imageFormat.fmt.pix.pixelformat = src_pixel_format; // src_format.pix.pixelformat; //V4L2_PIX_FMT_MJPEG;
+    imageFormat.fmt.pix.width = 40;
+    imageFormat.fmt.pix.height = 30;
+    imageFormat.fmt.pix.pixelformat = V4L2_PIX_FMT_MJPEG;
     imageFormat.fmt.pix.field = V4L2_FIELD_NONE;
-
-
     // tell the device you are using this format
     if (ioctl(fd, VIDIOC_S_FMT, &imageFormat) < 0) {
         perror("Device could not set format, VIDIOC_S_FMT");
@@ -283,26 +143,6 @@ int main(int argc, char* argv[]) {
     char filename[32];
     int frame_count = 10;
 
-    //unsigned char * capture_buffer;
-
-   /* int converted_buffer_size = 1920*1080*4;
-    unsigned char * converted_buffer = malloc(converted_buffer_size);
-
-    struct v4l2_format dst_format;
-
-    //https://docs.huihoo.com/doxygen/linux/kernel/3.7/structv4l2__pix__format.html
-    dst_format.fmt.pix.width = 1920;
-    dst_format.fmt.pix.height = 1080;
-    dst_format.fmt.pix.pixelformat = V4L2_PIX_FMT_RGB24; // src_format.pix.pixelformat; //V4L2_PIX_FMT_MJPEG;
-    ///dst_format.fmt.pix.field = V4L2_FIELD_NONE;
-
-    v4lconvert_fixup_fmt(&dst_format);
-
-    printf("Format before try: %d\n", imageFormat.fmt.pix.pixelformat);
-    int try_format = v4lconvert_try_format(conv_lib, &dst_format,  &imageFormat); 
-    printf("Try conv format: %d, %d, %d, %d\n", try_format, dst_format.fmt.pix.pixelformat, imageFormat.fmt.pix.pixelformat, src_pixel_format);
-    //printf("%s\n", v4lconvert_get_error_message(conv_lib));*/
-
     for (i = 0;i < frame_count; i++) {
         printf("7\n");
 
@@ -318,26 +158,10 @@ int main(int argc, char* argv[]) {
             return 1;
         }
 
-        /*int conv_needed = v4lconvert_needs_conversion(conv_lib, & imageFormat, & dst_format);
 
-        printf("Conversion needed: %d\n", conv_needed);
+        // Frames get written after dequeuing the buffer
 
-        int supported = v4lconvert_supported_dst_format(V4L2_PIX_FMT_RGB24);
-
-        printf("Conversion supported: %d\n", supported);
-
-        int conv_res = v4lconvert_convert(conv_lib, & imageFormat, & dst_format, (unsigned char *) buffer, bufferinfo.bytesused, converted_buffer, converted_buffer_size);
-
-        printf("Convert res: %d\n", conv_res);
-        if (conv_res ==-1){
-            printf ("conversion error: %s\n", v4lconvert_get_error_message(conv_lib));
-        }
-        // Frames get written after dequeuing the buffer*/
-        printf("Writing bitmap.\n");
-        write_bitmap(imageFormat.fmt.pix.width, imageFormat.fmt.pix.height, buffer, i);
-
-        /*printf("Buffer has: %f Bytes of data\n", (double)bufferinfo.bytesused);
-
+        printf("Buffer has: %f KBytes of data\n", (double)bufferinfo.bytesused / 1024);
 
         FILE* outfile;
 
@@ -348,14 +172,13 @@ int main(int argc, char* argv[]) {
             return 1;
         }
 
-        fwrite(converted_buffer, conv_res, 1, outfile);
+        fwrite(buffer, bufferinfo.bytesused, 1, outfile);
 
         fclose(outfile);
 
-        return 0;
         printf("Decompress buffer\n");
 
-        decompress_jpg(buffer, bufferinfo.bytesused);*/
+        decompress_jpg(buffer, bufferinfo.bytesused);
 
     }
     // Write the data out to file
@@ -409,7 +232,7 @@ int main(int argc, char* argv[]) {
     }
 
     close(fd);
-    //v4lconvert_destroy(conv_lib);
+
 
     return 0;
 }
@@ -476,15 +299,15 @@ void decompress_jpg(char* in_buffer, int in_size) {
     int i = 0, jpg_idx = 0, led_idx; //pixel index for current row, jpeg image, led string
     buffer = (*cinfo.mem->alloc_sarray)((j_common_ptr)&cinfo, JPOOL_IMAGE, row_stride, 1);
 
-    //unsigned int * edge_buffer;
-    //malloc(edge_buffer, edge_width * 2 + edge_height * 2 * 3 * sizeof(unsigned int));
+    unsigned int * edge_buffer;
+    malloc(edge_buffer, edge_width * 2 + edge_height * 2 * 3 * sizeof(unsigned int));
 
     int eofstring = 0;
     while (eofstring == 0 && cinfo.output_scanline < cinfo.output_height) {
         jpeg_read_scanlines(&cinfo, buffer, 1);
         int y = cinfo.output_scanline;
         for (i = 0;i < cinfo.image_width;i++) {
-            /*int edge_x, edge_y, edge_index;
+            int edge_x, edge_y, edge_index;
             edge_index = edge_x + edge_y;
 
             if (y < cinfo.image_height) {
@@ -497,7 +320,7 @@ void decompress_jpg(char* in_buffer, int in_size) {
                 edge_buffer[edge_width * 2 + edge_height * 2 - y] = ; //add left
             } else {
                 edge_buffer[edge_width + y] = ; //add right
-            }*/
+            }
 
            /* if (jpg_idx >= offset) { //check jpeg offset
                 unsigned char r, g, b;
