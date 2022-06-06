@@ -4,6 +4,32 @@
 #define MESSAGE_DIRECTION_RIGHT_LEFT 0
 #define MESSAGE_DIRECTION_LEFT_RIGHT 1
 
+
+void receive_character(char * text_buffer, int * text_buffer_index, int text_buffer_count, char c, int direction){
+    int i;
+    if (c!='\r' && c !='\n'){
+        if (debug) printf("Character received %c\n", c);
+        switch (direction) {
+        case MESSAGE_DIRECTION_RIGHT_LEFT:
+            //add new character at the end
+
+            text_buffer[*text_buffer_index] = c;
+            text_buffer[*text_buffer_index + 1] = 0; //end with 0
+            (*text_buffer_index)++;
+            break;
+        case MESSAGE_DIRECTION_LEFT_RIGHT:
+            //add new character at the beginning
+            for (i = text_buffer_count - 2; i >= 0 ;i--) text_buffer[i + 1] = text_buffer[i];
+            text_buffer[0] = c;
+            
+            (*text_buffer_index)++; //make sure end with 0
+            if (*text_buffer_index == text_buffer_count) *text_buffer_index = text_buffer_count - 1;
+            text_buffer[*text_buffer_index] = 0;
+            break;
+        }
+    }
+}
+
 //easy scrolling message board
 //message_board <channel>,<x>,<y>,<width>,<height>,<port_nr>,<direction>,<text_color>,<back_color>,<delay>,<font_size>,<font_anti_alias>,<options>,<font>
 void text_input(thread_context* context, char* args) {
@@ -30,8 +56,8 @@ void text_input(thread_context* context, char* args) {
         args = read_int(args, &font_anti_alias);
         args = read_int(args, &options);
         args = read_str(args, font, sizeof(font));
-
-        //cairo_pattern_set_filter(cairo_get_source(cr), CAIRO_FILTER_NEAREST);
+   
+       //cairo_pattern_set_filter(cairo_get_source(cr), CAIRO_FILTER_NEAREST);
 
         if (width <= 0) {
             fprintf(stderr, "Invalid width paramter value must be >0\n");
@@ -140,48 +166,15 @@ void text_input(thread_context* context, char* args) {
 
                     char c;
 
-                    while (read(input_socket, (void*)&c, 1) > 0 && !context->end_current_command) {
+                    while (read(input_socket, (void*)&c, 1) > 0 && !context->end_current_command) { //block wait for one character
                         if (c != '\r' && c != '\n') {
-                            if (debug) printf("Character received %c\n", c);
 
-                            switch (direction) {
-                            case MESSAGE_DIRECTION_RIGHT_LEFT:
-                                //add new character at the end
-
-                                if (text_buffer_index == text_buffer_count) {//we are at the end of the buffer, move all characters down 1 place
-                                    for (i = text_buffer_count - 1;i > 0;i--) {
-                                        text_buffer[i - 1] = text_buffer[i];
-                                    }
-
-                                    cairo_text_extents_t extents;
-                                    cairo_text_extents(cr, text_buffer, &extents);
-
-                                    int total_width_after_remove = extents.x_advance;
-
-                                    switch (direction) {
-                                    case MESSAGE_DIRECTION_RIGHT_LEFT:
-                                        p_x += p_total_width - total_width_after_remove; //move removed character width in x back
-                                        break;
-                                    case MESSAGE_DIRECTION_LEFT_RIGHT:
-                                        //has no effect
-                                        break;
-                                    }
-
-                                    p_total_width = total_width_after_remove;
-
-                                }
-
-                                text_buffer[text_buffer_index] = c;
-                                text_buffer[text_buffer_index + 1] = 0; //end with 0
-                                text_buffer_index++;
-                                break;
-                            case MESSAGE_DIRECTION_LEFT_RIGHT:
-                                //add new character at the beginning
-                                for (i = text_buffer_count - 2; i >= 0 ;i--) text_buffer[i + 1] = text_buffer[i];
-                                text_buffer[0] = c;
-                                break;
+                            int available = bytes_available(input_socket);
+                            receive_character(text_buffer, & text_buffer_index, text_buffer_count, c, direction);
+                            while (available > 0 && text_buffer_index < (text_buffer_count - 1) && read(input_socket, (void*)&c, 1) > 0 && !context->end_current_command){
+                                receive_character(text_buffer, & text_buffer_index, text_buffer_count, c, direction);
+                                available--;
                             }
-
 
                             cairo_text_extents_t extents;
                             cairo_text_extents(cr, text_buffer, &extents);
@@ -189,60 +182,110 @@ void text_input(thread_context* context, char* args) {
                             total_width = extents.x_advance;
                             total_height = extents.height;
 
-                            character_size = total_width - p_total_width; //new total width vs previous total width of the text buffer + extra user defined spacing
                             int mask_x = x, mask_y = y + extents.y_bearing;
+                            char tmp;
 
-                            switch (direction) {
-                            case MESSAGE_DIRECTION_RIGHT_LEFT:
-                                //no effect on x location adding new char
-                                break;
-                            case MESSAGE_DIRECTION_LEFT_RIGHT:
-                                p_x -= total_width - p_total_width; //move removed character width in x back
-                                break;
-                            }
-
-                            while (character_size > 0 && !context->end_current_command) {
-
-                                cairo_save(cr);
-
-                                //paint backcolor
-                                cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
-                                set_cairo_color_rgba(cr, back_color);
-                                cairo_rectangle(cr, mask_x, mask_y, width, height);
-                                cairo_fill(cr);
-
-                                //set clipping rectangle
-                                //http://zetcode.com/gfx/cairo/clippingmasking/
-                                cairo_set_source_rgb(cr, 0, 0, 0);
-                                cairo_rectangle(cr, mask_x, mask_y, width, height);
-                                cairo_clip(cr);
-
-                                //set forecolor
-                                set_cairo_color_rgba(cr, text_color);
-
-                                cairo_move_to(cr, (double)p_x, (double)p_y);
-                                cairo_show_text(cr, text_buffer);
-
-                                cairo_restore(cr);
-
-                                render_channel(channel);
-
+                            while ((total_width > (x + width - p_x) && direction == MESSAGE_DIRECTION_RIGHT_LEFT) ||
+                                    (total_width > (p_x - x) && direction == MESSAGE_DIRECTION_LEFT_RIGHT)){ //run until all text is printed
+                                
+                                int move_x=0;
+                                
                                 switch (direction) {
                                 case MESSAGE_DIRECTION_RIGHT_LEFT:
-                                    p_x--;
-                                    if (p_x < (x + width - total_width)) character_size = 0;
+                                    cairo_text_extents(cr, & text_buffer[1], &extents);
+                                    character_size = total_width - extents.x_advance;
                                     break;
                                 case MESSAGE_DIRECTION_LEFT_RIGHT:
-                                    p_x++;
-                                    if (p_x > x) character_size = 0;
+                                    tmp = text_buffer[text_buffer_index-1];
+                                    text_buffer[text_buffer_index-1]=0;
+                                    cairo_text_extents(cr, text_buffer, &extents);
+                                    text_buffer[text_buffer_index-1]=tmp;
+                                    character_size = total_width - extents.x_advance;
+                                    move_x = (-p_x + x) - total_width + (p_x - x);
                                     break;
                                 }
 
-                                if (delay == 0) break;
-                                usleep(delay * 1000);
-                            }
+                                bool consume_char = false;
+                                while (character_size > 0 && !context->end_current_command) {
 
-                            p_total_width = total_width;
+                                    cairo_save(cr);
+
+                                    //paint backcolor
+                                    cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+                                    set_cairo_color_rgba(cr, back_color);
+                                    cairo_rectangle(cr, mask_x, mask_y, width, height);
+                                    cairo_fill(cr);
+                                    
+                                    //set clipping rectangle
+                                    //http://zetcode.com/gfx/cairo/clippingmasking/
+                                    cairo_set_source_rgb(cr, 0, 0, 0);
+                                    cairo_rectangle(cr, mask_x, mask_y, width, height);
+                                    cairo_clip(cr);
+
+                                    //set forecolor
+                                    set_cairo_color_rgba(cr, text_color);
+
+                                    cairo_move_to(cr, (double)p_x + move_x, (double)p_y);
+                                    cairo_show_text(cr, text_buffer);
+
+                                    cairo_restore(cr);
+
+                                    render_channel(channel);
+
+                                    switch (direction) {
+                                    case MESSAGE_DIRECTION_RIGHT_LEFT:
+                                        if (p_x >= x){
+                                            p_x--; //check if at the end of LEFT box boundary, if not then move p_x which started at the end of the boundary box
+                                        }else{
+                                            move_x--;
+                                            consume_char=true;
+                                        } 
+                                        break;
+                                    case MESSAGE_DIRECTION_LEFT_RIGHT:
+                                        if (p_x < x + width){
+                                            p_x++;
+                                        }else{
+                                            move_x++;
+                                            consume_char=true;  // to do: improve 
+                                        }
+                                        break;
+                                    }
+                                    character_size--;
+                                    if (delay == 0) break;
+                                    usleep(delay * 1000);
+                                }
+
+                                //true if we need to remove the first / last character from the buffer because it moved out of visible space
+                                if (consume_char){
+                                    switch (direction) {
+                                    case MESSAGE_DIRECTION_RIGHT_LEFT:
+                                        for (i = 1;i < text_buffer_count;i++) {
+                                            text_buffer[i - 1] = text_buffer[i];
+                                        }
+                                        text_buffer_index--;
+                                        text_buffer[text_buffer_index] = 0; //end with 0
+                                        if (debug) printf("text buffer: %s\n", text_buffer);
+                                        break;
+                                    case MESSAGE_DIRECTION_LEFT_RIGHT:
+                                        text_buffer_index--;
+                                        text_buffer[text_buffer_index] = 0; //end with 0
+                                        if (debug) printf("text buffer: %s\n", text_buffer);
+                                        break;
+                                    }                             
+                                }
+
+                                
+                               // p_total_width = total_width;
+
+                                cairo_text_extents_t extents;
+                                cairo_text_extents(cr, text_buffer, &extents);
+
+                                total_width = extents.x_advance;
+                                total_height = extents.height;
+
+                                int mask_x = x, mask_y = y + extents.y_bearing;
+
+                            }
                         }
                     }        
                     shutdown(input_socket, SHUT_RDWR);

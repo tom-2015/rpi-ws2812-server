@@ -6,6 +6,7 @@
 #include <netdb.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/ioctl.h>
 
 //return true if socket is still connected
 bool socket_connected(socket_t socket_fd){
@@ -75,3 +76,10 @@ int hostname_to_ip(char * hostname , struct in_addr * addr) {
 	
 	return 1;
 }
+
+int bytes_available(socket_t socket_fd){
+	int count;
+	ioctl(socket_fd, FIONREAD, &count);
+	return count;	
+}
+

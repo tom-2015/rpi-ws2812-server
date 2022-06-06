@@ -1,4 +1,7 @@
 
+# Version 7.1
+* Fix cairo crash after sending to many characters in the text_input command.
+
 # Version 7.0
 * render command will now render ALL channels if no channel argument is used or 0 as channel number is used (for backwards compatibility)
 
