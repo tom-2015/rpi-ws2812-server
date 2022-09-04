@@ -1,4 +1,8 @@
 
+
+# Version 7.2
+* Add new hardware version for Raspberry Pi 4 and Raspberry Pi Zero.
+
 # Version 7.1
 * Fix cairo crash after sending to many characters in the text_input command.
 
