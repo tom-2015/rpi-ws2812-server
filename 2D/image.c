@@ -6,12 +6,13 @@ cairo_surface_t* cairo_image_surface_create_from_jpg(const char* filename);
 
 
 //draw a png file to surface
-//draw_image <channel>,<file_name>,<dst_x>,<dst_y>,<src_x>,<src_y>,<dst_width>,<dst_height>,<src_width>,<src_height>,<speed>,<max_loops>
+//draw_image <channel>,<file_name>,<dst_x>,<dst_y>,<src_x>,<src_y>,<dst_width>,<dst_height>,<src_width>,<src_height>,<speed>,<max_loops>,<gif_trans>
 void draw_image(thread_context* context, char* args) {
     char filename[MAX_VAL_LEN] = { 0 };
     char fileext[MAX_VAL_LEN] = { 0 };
     int channel = 0, max_loops = 0, src_x = 0, src_y = 0, src_width = 0, src_height = 0, i;
     double dst_x = 0.0, dst_y = 0.0, dst_width = 0.0, dst_height = 0.0;
+	int gif_trans = 1;
     double speed = 1.0;
     bool is_gif = false;
     gd_GIF* gif = NULL;
@@ -75,8 +76,9 @@ void draw_image(thread_context* context, char* args) {
         args = read_int(args, &src_height);
         args = read_double(args, &speed);
         args = read_int(args, &max_loops);
+        args = read_int(args, &gif_trans);
 
-        if (debug) printf("draw_image %d,%s,%s,%f,%f,%d,%d,%f,%f,%d,%d,%f,%d\n", channel, filename, fileext, dst_x, dst_y, src_x, src_y, dst_width, dst_height, src_width, src_height, speed, max_loops);
+        if (debug) printf("draw_image %d,%s,%s,%f,%f,%d,%d,%f,%f,%d,%d,%f,%d,%d\n", channel, filename, fileext, dst_x, dst_y, src_x, src_y, dst_width, dst_height, src_width, src_height, speed, max_loops, gif_trans);
 
 
         double xScale = dst_width / (float)src_width;
@@ -108,7 +110,7 @@ void draw_image(thread_context* context, char* args) {
                     unsigned char* color = gif_buffer;
                     for (unsigned int y = 0; y < gif->height; y++) {
                         for (unsigned int x = 0; x < gif->width; x++) {
-                            if (gd_is_bgcolor(gif, color)) {
+                            if ((gif_trans!=0) && (gd_is_bgcolor(gif, color))) {
                                 pixels[y * cairo_stride + x] = 0; //full transparent
                             }else{
                                 pixels[y * cairo_stride + x] =  convert_cairo_color((*((unsigned int*)color)) & 0xFFFFFF);
