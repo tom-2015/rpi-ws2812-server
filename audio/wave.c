@@ -1,22 +1,24 @@
-#include "vu_meter.h"
+#include "wave.h"
 #include "record.h"
 #include <pthread.h>
 #include <math.h>
-//vu_meter <channel>,<color_mode>[,<color(s)>],<color_change_delay>,<duration>,<delay>,<brightness>,<start>,<len>,<gain>
-void vu_meter(thread_context* context, char* args) {
+//audio_wave <channel>,<gain>,<color_mode>,<color>,<delay>,<color_change_delay>,<direction>,<duration>,<min_brightness>,<start>,<len>
+//prints low pass audio wave directly on the strip
+void audio_wave(thread_context* context, char* args) {
 	const unsigned int MAX_COLORS = 255;
-	int channel = 0;
+	int channel=0;
 	int duration = 0;
-	int delay = 25;
+	int delay = 35;
 	int len = 0, start = 0;
+	int direction = 0;
 	unsigned int next_color = 255;
 	unsigned int colors[MAX_COLORS];
+    int min_brightness = 20;
 	int color_count = 0;
-	int color_mode = 4; //default classic VU meter
-	int color_change_delay = 60; //60 sec change color
-	int brightness = 255;
-	float gain = 1.0;
-	int i;
+	int color_mode = 2; //default some random colors
+	int color_change_count = 200; //5 sec with delay = 25
+	int color_change_delay = 5;
+    float gain=4.0;
 
 	if (!context->audio_capture.capturing) {
 		fprintf(stderr, "Error audio capture is not running on this thread. Use the record_audio command to start capturing first!\n");
@@ -26,18 +28,17 @@ void vu_meter(thread_context* context, char* args) {
 	args = read_channel(args, &channel);
 
 	if (is_valid_channel_number(channel)) {
-		//args = read_float(args, &threshold);
+        args = read_float(args, &gain);
 		args = read_int(args, &color_mode);
 
 		switch (color_mode) {
 		case 0: //fixed color
 			args = read_color_arg(args, &next_color, get_color_size(channel));
 			colors[0] = next_color;
-			color_count = 1;
 			break;
 		case 1: //color sequence
 			if (*args == ',') args++;
-			while (color_count < MAX_COLORS && *args != ',' && *args != 0) {
+			while (color_count < MAX_COLORS && *args!=',' && *args!=0) {
 				args = read_color(args, &colors[color_count], get_color_size(channel));
 				color_count++;
 			}
@@ -61,9 +62,7 @@ void vu_meter(thread_context* context, char* args) {
 			}
 			next_color = colors[0];
 			break;
-		case 3: //don't care about color
-			break;
-		case 4: //create green - orange - yellow - red classic VU meter, this is done when we know the start and length
+		case 3: //don't care about colors
 			break;
 		default:
 			fprintf(stderr, "Error invalid color mode %d\n", color_mode);
@@ -71,33 +70,27 @@ void vu_meter(thread_context* context, char* args) {
 			break;
 		}
 
-		if (debug) {
-			printf("color count: %d\n", color_count);
-			for (i = 0;i < color_count;i++) {
-				printf("Color %d=%d\n", i, colors[i]);
-			}
-		}
-
-		args = read_int(args, &color_change_delay);
-		args = read_int(args, &duration);
 		args = read_int(args, &delay);
-		args = read_int(args, &brightness);
+		args = read_int(args, &color_change_delay);
+		args = read_int(args, &direction);
+		args = read_int(args, &duration);
+		args = read_int(args, &min_brightness);
 		args = read_int(args, &start);
 		args = read_int(args, &len);
-		args = read_float(args, &gain);
 
-		if (debug) printf("vu_meter %d, %d, %d, %d, %d, %d, %d, %d\n", color_mode, color_change_delay, duration, delay, brightness, start, len, gain);
+		if (debug) printf("audio_pulses %d,%f,%d,%d (%d),%d,%d,%d,%d,%d,%d,%d\n", channel, gain, color_mode, next_color, color_count, delay, color_change_delay, direction, duration, min_brightness, start, len);
 
 		if (start >= get_led_count(channel)) start = 0;
 		if ((start + len) > get_led_count(channel)) len = get_led_count(channel) - start;
 		if (len == 0) len = get_led_count(channel);
 
+		color_change_count = color_change_delay * 1000 / delay;
+
+		context->audio_capture.threshold = 0;
 
 		ws2811_led_t* leds = get_led_string(channel);
-
 		unsigned int start_time = time(0);
-		unsigned int color_time = time(0);
-		unsigned int next_color_time = color_time;
+		unsigned int loop_count = 0;
 		unsigned int color_index = 0;
 		unsigned int current_color = next_color;
 
@@ -105,77 +98,72 @@ void vu_meter(thread_context* context, char* args) {
 		context->audio_capture.capture_dst_buffer = (void*)&low_pass_buffer;
 		context->audio_capture.dsp_mode = DSP_MODE_AVG;
 
-		const float REFERENCE = 32768;
-		float MIN_DB = 20 * log10(1.0 / REFERENCE);
-		float MAX_DB = 0;
-
-		if (color_mode == 4) { //generate classic VU meter colors
-
-			for (i = 0;i < len;i++) {
-
-				int perc = 100 * i / len;
-
-				if (perc > 85) {
-					leds[start + i].color = color(255, 0, 0);
-				}else if (perc > 80) {
-					leds[start + i].color = color(255, 128, 0);
-				}else if (perc > 75) {
-					leds[start + i].color = color(255, 255, 0);
-				}else if (perc > 70) {
-					leds[start + i].color = color(128, 255, 0);
-				}else {
-					leds[start + i].color = color(0, 255, 0);
-				}
-			}
-		}
+        //const float REFERENCE = 32768;
+		//float MIN_DB = 20 * log10(1.0 / REFERENCE);
+		//float MAX_DB = 0;
 
 		while ((((time(0) - start_time) < duration) || duration == 0) && context->end_current_command == 0) {
 			float low_pass_value;
 
 			pthread_mutex_lock(&context->audio_capture.buffer_mutex);
-			low_pass_value = low_pass_buffer;
+			low_pass_value = low_pass_buffer * gain;
 			pthread_mutex_unlock(&context->audio_capture.buffer_mutex);
 
-			//https://forums.codeguru.com/showthread.php?445227-RESOLVED-VU-Meter
-			float db = low_pass_value > 0 ? 20 * log10(low_pass_value * gain) : -1000000;
-			int nLEDS = (int)((db - MIN_DB) * len / (MAX_DB - MIN_DB));
+            //float db = low_pass_value > 0 ? 20 * log10(low_pass_value) : -1000000;
+			///unsigned int intensity = (int)((db - MIN_DB) * 255.0 / (MAX_DB - MIN_DB));
 
+            unsigned int intensity = 255.0 * low_pass_value;
 
-			if (color_mode != 3 && color_mode !=4 && next_color_time <= time(0)) {
-				switch (color_mode) {
-				case 0: //fixed color
-					break;
-				case 1: //color sequence
-					next_color = colors[color_index];
-					color_index++;
-					if (color_index == color_count) color_index = 0;
-					break;
-				case 2: //random color from color list
-					color_index = (float)color_count * ((float)rand() / (float)RAND_MAX);
-					next_color = colors[color_index];
-					break;
+			if (intensity < min_brightness) intensity = 0;
+
+			//move all leds 1 position
+			unsigned int n;
+			if (direction) {
+				for (n = 0;n < len - 1;n++) {
+					if (color_mode != 3) leds[start + n].color = leds[start + n + 1].color;
+					leds[start + n].brightness = leds[start + n + 1].brightness;
 				}
-				next_color_time = time(0) + color_change_delay;
-				for (i = 0;i < len;i++) {
-					leds[start + i].color = next_color;
+			} else {
+				for (n = len - 1; n > 0; n--) {
+					if (color_mode != 3) leds[start + n].color = leds[start + n - 1].color;
+					leds[start + n].brightness = leds[start + n - 1].brightness;
 				}
 			}
 
-			for (i = 0;i < len;i++) {
-				if (i <= nLEDS) {
-					leds[start + i].brightness = brightness;
-				} else {
-					leds[start + i].brightness = 0;
-				}
+			//set first or last led to new intensity
+			if (direction) {
+				if (color_mode != 3) leds[start + len - 1].color = next_color;
+				leds[start + len - 1].brightness = intensity;
+			} else {
+				if (color_mode != 3) leds[start].color = next_color;
+				leds[start].brightness = intensity;
 			}
 
 			render_channel(channel);
 			usleep(delay * 1000);
 
+			if (loop_count >= color_change_count) {
+				switch (color_mode) {
+				case 1:
+					next_color = colors[color_index];
+					color_index++;
+					if (color_index == color_count) color_index = 0;
+					break;
+				case 2:
+					color_index = (float)color_count * ((float)rand() / (float)RAND_MAX);
+					next_color = colors[color_index];
+					break;
+				case 3: //don't care
+				case 0:
+					break;
+				}
+				loop_count = 0;
+			}
+
+			loop_count++;
 		}
 		context->audio_capture.dsp_mode = DSP_MODE_NONE;
-	}
-	else {
+	} else {
 		fprintf(stderr, ERROR_INVALID_CHANNEL);
 	}
 }

@@ -121,6 +121,51 @@ send_to_leds("thread_start 1,0;
 
 <p>If you want to synchronize effects between multiple threads see this <a href="sync_threads.htm">example</a>.</p>
 
+<h3>Threads another way</h3>
+This example uses threads in a different way to make 5 LED strips change in color at the same time.<br/>
+Strip 3,4,5 are connected to Raspberry Pi Zero over the network using remote slave channels.
+<p>
+<div class="commands">
+<code>
+setup 1,250,5,0,255,18
+setup 2,300,3,0,255,19
+setup 3,100,100,"192.168.0.81",8000
+setup 4,120,100,"192.168.0.82",8000
+setup 5,150,100,"192.168.0.83",8000
+init
+
+thread_start 1
+	color_change 1, 0, 190, 20000
+thread_stop
+
+thread_start 2
+	color_change 2, 0, 190, 20000
+thread_stop
+
+thread_start 3
+	color_change 3, 0, 190, 20000
+thread_stop
+
+thread_start 4
+	color_change 4, 0, 190, 20000
+thread_stop
+
+thread_start 5
+	color_change 5, 0, 190, 20000
+thread_stop
+
+#now wait for all effects to complete
+
+wait_thread_exit 1
+wait_thread_exit 2
+wait_thread_exit 3
+wait_thread_exit 4
+wait_thread_exit 5
+
+</code>
+</div>
+</p>
+
 <p><a href="index.htm">Back</a></p>
 </body>
 </html>

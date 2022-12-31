@@ -10,6 +10,7 @@
 #include <alsa/asoundlib.h>
 #include "ws2811.h"
 #include "sk9822.h"
+#include "pipe.h"
 
 #define DEFAULT_DEVICE_FILE "/dev/ws281x"
 #define DEFAULT_COMMAND_LINE_SIZE 1024
@@ -47,6 +48,12 @@
 #define CAPTURE_MODE_ALSA 0
 #define CAPTURE_MODE_UDP 1
 #define CAPTURE_MODE_PIPE 2
+#define CAPTURE_MODE_OTHER_THREAD 3
+
+#define FILTER_MODE_NONE 0
+#define FILTER_MODE_LOW_PASS 1
+#define FILTER_MODE_HIGH_PASS 2
+#define FILTER_MODE_BAND_PASS 3
 
 extern volatile int	debug; //1 if debugging output is enabled
 extern volatile int	exit_program; //set to 1 to exit the program
@@ -76,6 +83,15 @@ typedef struct {
 	unsigned int capture_dst_buffer_count; //number of samples stored in the capture_dst_buffer a.t.m.
 	unsigned int capture_dst_buffer_size; //size of the dst_buffer (depends on the dsp_mode)
 	float capture_gain; //multiply all samples with this factor
+
+	char filter_mode; //FILTER_MODE_*
+	float low_pass_filter_coef; //
+	float high_pass_filter_coef;
+	
+	volatile unsigned int copy_from_thread; //thread ID to copy samples from
+	volatile pipe_t * sample_pipe; //the pipe, used if copy_from_thread is active to write new samples which can be read by another thread
+	volatile pipe_producer_t * sample_pipe_writer; //used by the thread in copy_from_thread to write samples
+	volatile pipe_consumer_t * sample_pipe_reader; //used by the thread to read samples
 } capture_options;
 
 
@@ -141,6 +157,7 @@ typedef struct {
 	unsigned char * packet_data; //pointer for packet payload, used in render_slave_channel for storing channel data
 } virtual_channel_t;
 
+#define CHANNEL_FLAG_SKIP_RENDER 1
 
 typedef struct {
 	int channel_type;  //defines if this channel is WS2811 or SK9822
@@ -148,6 +165,7 @@ typedef struct {
 	int color_size;		
 	int led_count;     //led count
 	bool initialized;  //true if initialized
+	unsigned int  flags; 	  // flags
 	ws2811_channel_t* ws2811_channel;
 	sk9822_channel_t* sk9822_channel;
 	virtual_channel_t* virtual_channel;

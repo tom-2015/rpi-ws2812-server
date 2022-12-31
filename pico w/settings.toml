@@ -1,0 +1,24 @@
+#define WIFI_PASSWORD and WIFI_SSID, network settings here
+WIFI_SSID="dlink"
+WIFI_PASSWORD="pm6vj3wjuSkm"
+USE_DHCP=0
+IP="192.168.0.82"
+NETMASK="255.255.255.0"
+GATEWAY="192.168.0.1"
+PORT=8000
+
+#define IP and port
+
+#define number of pixels
+PIXEL_COUNT=120
+
+#define number of colors in 1 LED
+PIXEL_COLOR_COUNT=3
+
+#define color order in the LED/data (RGB, RGBW)
+PIXEL_COLOR_ORDER="GRB"
+
+#GPIO pin number to send data
+PIN=0
+
+#always add empty line to the settings file

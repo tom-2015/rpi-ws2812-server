@@ -29,7 +29,7 @@ FILE *			input_file;         		//the named pipe handle
 char *			named_pipe_file;    		//holds named pipe file name 
 char *			initialize_cmd=NULL; 		//initialze command
 int				mode=MODE_STDIN;            //mode we operate in (TCP, named pipe, file, stdin)
-
+bool			enable_system_cmd;			//enable the use of system (can be security risk)
 
 
 //for TCP mode
@@ -186,6 +186,11 @@ void load_config_file(char * filename){
 				initialize_cmd = (char*)malloc(strlen(val)+1);			
 				strcpy(initialize_cmd, val);
 			}
+		}else if (strcmp(cfg, "allow_system_cmd")==0 && val!=NULL){
+			if (strlen(val)>0){
+				enable_system_cmd = atoi(val) > 0 || strcmp(val, "true")==0;
+				if (debug && enable_system_cmd) printf("Enable system commands.\n");
+			}
 		}
         
     }
@@ -278,8 +283,10 @@ int main(int argc, char* argv[]) {
 				initialize_cmd = (char*)malloc(strlen(argv[arg_idx])+1);
 				strcpy(initialize_cmd, argv[arg_idx]);
 			}
+		}else if (strcmp(argv[arg_idx], "-s")==0){
+			enable_system_cmd = true;
 		}else if (strcmp(argv[arg_idx], "-?")==0){
-			printf("WS2812 Server program for Raspberry Pi V7.1\n");
+			printf("WS2812 Server program for Raspberry Pi V7.4\n");
 			printf("Command line options:\n");
 			printf("-p <pipename>       	creates a named pipe at location <pipename> where you can write command to.\n");
 			printf("-f <filename>       	read commands from <filename>\n");
@@ -287,6 +294,7 @@ int main(int argc, char* argv[]) {
 			printf("-d                  	turn debug output on.\n");
 			printf("-i \"<commands>\"       initialize with <commands> (seperate and end with a ;)\n");
 			printf("-c <filename>		    initializes using a configuration file (for running as deamon)\n");
+			printf("-s						enable the 'system' command which executes ANY OS command or script (can be a security risk!).\n");
 			printf("-?                  	show this message.\n");
 			return 0;
 		}
@@ -301,6 +309,7 @@ int main(int argc, char* argv[]) {
     int c;
 
 	thread_context * main_thread = get_thread(0);
+	main_thread->thread_running=1;
 	
 	if (initialize_cmd!=NULL){	
 		for(i=0;i<strlen(initialize_cmd);i++){
