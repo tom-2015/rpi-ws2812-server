@@ -575,7 +575,7 @@ draw_circle <channel>,<x>,<y>,<radius>,<color>,<border_width>,<border_color>,<st
 * `draw_image` draws an image file
 
 ```
-draw_image <channel>,<file_name>,<dst_x>,<dst_y>,<src_x>,<src_y>,<dst_width>,<dst_height>,<src_width>,<src_height>,<speed>,<max_loops>
+draw_image <channel>,<file_name>,<dst_x>,<dst_y>,<src_x>,<src_y>,<dst_width>,<dst_height>,<src_width>,<src_height>,<speed>,<max_loops>,<gif_trans>
 This will paint a JPG, PNG or (animated) GIF to the LED matrix.
 
 # <channel>			Channel number
@@ -590,6 +590,7 @@ This will paint a JPG, PNG or (animated) GIF to the LED matrix.
 # <src_height> 		Source height, change together with src_width
 # <speed>			If the file is an animated gif, specify here a speed multiplier, for example 2 will play at twice the speed. default is 1
 # <max_loops>		for animated gif only stop repeating the animation after max_loops, default 0 = inifite loops or loops defined in the GIF
+# <gif_trans>		Draws GIF background when the value is 0, and transparaent when the value is 1 (default 1) 
 ```
 
 * `draw_line` draws an image file
