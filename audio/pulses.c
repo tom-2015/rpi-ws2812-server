@@ -19,7 +19,7 @@ void audio_pulses(thread_context* context, char* args) {
 	float threshold=0.1;
 
 	if (!context->audio_capture.capturing) {
-		fprintf(stderr, "Error audio capture is not running on this thread. Use the audio_capture command to start capturing first!\n");
+		fprintf(stderr, "Error audio capture is not running on this thread. Use the record_audio command to start capturing first!\n");
 		return;
 	}
 

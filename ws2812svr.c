@@ -16,6 +16,9 @@
 #include <sys/types.h>
 #include <fcntl.h>
 
+#include "gpio.h"
+#include "rpihw.h"
+#include "mailbox.h"
 //include all effects
 #include "master_slave.h"
 #include "effects/rotate.h"
@@ -52,6 +55,8 @@
 #include "audio/pulses.h"
 #include "audio/light_organ.h"
 #include "audio/vu_meter.h"
+#include "audio/wave.h"
+
 
 void malloc_command_line(thread_context * context, int size);
 
@@ -64,6 +69,7 @@ pthread_mutex_t ws2812_render_mutex; //for ws2812 only one thread should render 
 
 volatile int	debug=0;   //set to 1 to enable debug output
 volatile int	exit_program=0; //set to 1 to exit the program
+extern bool enable_system_cmd;
 
 void (* write_to_output_func)(char *) =NULL;
 
@@ -115,6 +121,7 @@ bool init_ws2812svr (){
 		threads[i].write_to_own_buffer=0;
 		threads[i].execute_main_do_loop=0;
 		threads[i].ft_init = false;
+		memset(& threads[i].audio_capture, 0, sizeof(capture_options));
         int j;
 		for(j=0;j<MAX_LOOPS;j++){
 			threads[i].loops[j].do_pos=0;      //positions of 'do' in file loop, max 32 loops
@@ -316,31 +323,33 @@ void render_channel(int channel) {
 			}
 		}
 	}
-
-	switch (led_channels[channel].channel_type) {
-	case CHANNEL_TYPE_SK9822:
-		;
-		sk9822_return_t sk9822_res = sk9822_render_channel(led_channels[channel].sk9822_channel);
-		if (sk9822_res != SK9822_SUCCESS) {
-			fprintf(stderr, "sk9822 render failed on channel %d: %s\n", channel, sk9822_get_return_t_str(sk9822_res));
+	
+	if ((led_channels[channel].flags & CHANNEL_FLAG_SKIP_RENDER)==0){ //skip render to prevent multiple threads to render same time and slow things down (usefull for virtual and slave channels)
+		switch (led_channels[channel].channel_type) {
+		case CHANNEL_TYPE_SK9822:
+			;
+			sk9822_return_t sk9822_res = sk9822_render_channel(led_channels[channel].sk9822_channel);
+			if (sk9822_res != SK9822_SUCCESS) {
+				fprintf(stderr, "sk9822 render failed on channel %d: %s\n", channel, sk9822_get_return_t_str(sk9822_res));
+			}
+			break;
+		case CHANNEL_TYPE_WS2811:
+			pthread_mutex_lock(&ws2812_render_mutex);
+			ws2811_return_t ws8211_res = ws2811_render(&ws2811_ledstring, channel);
+			pthread_mutex_unlock(&ws2812_render_mutex);
+			if (ws8211_res != WS2811_SUCCESS) {
+				fprintf(stderr, "ws2811 render failed on channel %d: %s\n", channel, ws2811_get_return_t_str(ws8211_res));
+			}
+			break;
+		case CHANNEL_TYPE_VIRTUAL:
+			if (led_channels[channel].virtual_channel->parent_channel_index !=-1) {
+				render_channel(led_channels[channel].virtual_channel->parent_channel_index);
+			}
+			break;
+		case CHANNEL_TYPE_SLAVE:
+			render_slave_channel(&led_channels[channel]);
+			break;
 		}
-		break;
-	case CHANNEL_TYPE_WS2811:
-		pthread_mutex_lock(&ws2812_render_mutex);
-		ws2811_return_t ws8211_res = ws2811_render(&ws2811_ledstring, channel);
-		pthread_mutex_unlock(&ws2812_render_mutex);
-		if (ws8211_res != WS2811_SUCCESS) {
-			fprintf(stderr, "ws2811 render failed on channel %d: %s\n", channel, ws2811_get_return_t_str(ws8211_res));
-		}
-		break;
-	case CHANNEL_TYPE_VIRTUAL:
-		if (led_channels[channel].virtual_channel->parent_channel_index !=-1) {
-			render_channel(led_channels[channel].virtual_channel->parent_channel_index);
-		}
-		break;
-	case CHANNEL_TYPE_SLAVE:
-		render_slave_channel(&led_channels[channel]);
-		break;
 	}
 
 	pthread_mutex_unlock(&led_channels[channel].render_mutex);
@@ -1029,6 +1038,7 @@ void reset_led_strings() {
 		led_channels[i].sk9822_channel = NULL;
 		led_channels[i].ws2811_channel = NULL;
 		led_channels[i].ledstring_1D = NULL;
+		led_channels[i].flags = 0;
 
 		if (led_channels[i].virtual_channel != NULL) {
 			if (led_channels[i].channel_type==CHANNEL_TYPE_SLAVE){
@@ -1039,7 +1049,7 @@ void reset_led_strings() {
 		}
 		led_channels[i].virtual_channel = NULL;
 
-#ifdef USE_2D
+//#ifdef USE_2D
 		if (led_channels[i].ledstring_2D != NULL) {
 			for (int k = 0;k < led_channels[i].height;k++) {
 				free(led_channels[i].ledstring_2D[k]);
@@ -1056,7 +1066,7 @@ void reset_led_strings() {
 		led_channels[i].surface = NULL;
 		led_channels[i].surface_data = NULL;
 		cairo_reset_layers(&led_channels[i]);
-#endif
+//#endif
 	}
 
 	create_sk9822(&sk9822_ledstring);
@@ -1224,6 +1234,7 @@ void setup_ledstring(thread_context * context, char * args){
 				led_channels[channel].virtual_channel->remote_address[0] = 0;
 				led_channels[channel].virtual_channel->packet_nr=0;
 				led_channels[channel].virtual_channel->packet_data=NULL;
+				led_channels[channel].virtual_channel->parent_channel_index = parent_channel_index;
 				led_channels[channel].led_count = max_led_count;
 				led_channels[channel].color_size = led_channels[parent_channel_index].color_size;
 			} else {
@@ -1762,10 +1773,94 @@ void wait_ready_signal(thread_context * context, char * args){
 	}
 }
 
+//skip_render <channel>,<1 OR 0>
+//enables / disables (auto) rendering for channel, only 2D will be transferred to led buffer
+//only to be used with virtual channels to limit the number of renderings when running multiple effects in different threads
+void skip_render(thread_context * context, char * args){
+	int channel=0;
+	int value=0;
+
+	args = read_channel(args, &channel);
+	args = read_int(args, &value);
+
+	if (is_valid_channel_number(channel)){
+		if (value){
+			led_channels[channel].flags |= CHANNEL_FLAG_SKIP_RENDER;
+			if (debug) printf("Disabled rendering from channel %d.\n", channel);
+		}else{
+			led_channels[channel].flags &=~CHANNEL_FLAG_SKIP_RENDER;
+			if (debug) printf("Enabled rendering of channel %d\n", channel);
+		}
+	}else{
+		fprintf(stderr, ERROR_INVALID_CHANNEL);
+	}
+
+}
+
 //prints text on output, for debugging large scripts
 void echo(thread_context* context, char* args) {
 	write_to_output(args);
 	write_to_output("\n");
+}
+
+volatile gpio_t * gpio_ptr=NULL;
+
+bool init_gpio(){
+	const rpi_hw_t* rpi_hw = rpi_hw_detect();//< RPI Hardware Information
+	if (!rpi_hw) {
+		if (debug) printf("Error RPI hardware not supported!\n");
+		return false;
+	}                     
+	uint32_t base = rpi_hw->periph_base;
+	gpio_ptr = (gpio_t *) mapmem(GPIO_OFFSET + base, sizeof(gpio_t), DEV_GPIOMEM);
+	printf("Ptr: %#08x.\n", base);
+	if (!gpio_ptr)
+	{
+		if (debug) printf("Error mapping GPIO memory!\n");
+		return false;
+	}
+	return true;
+}
+
+void wait_gpio(thread_context * context, char * args) {
+	int gpio_num=0;
+	int value=1;
+	args = read_int(args, &gpio_num);
+	args = read_int(args, &value);
+
+	if (value >= 1) value = 1;
+	else value = 0;
+
+	if (gpio_ptr==NULL) init_gpio();
+
+	if (debug) printf("Waiting for gpio %d to become %d.\n", gpio_num, value);
+	
+	gpio_function_set(gpio_ptr, gpio_num, GPIO_FUNC_IN);
+
+	while (gpio_level_read(gpio_ptr , gpio_num)!=value){
+		usleep(10);
+	}
+
+	if (debug) printf("Gpio %d.\n", value);
+}
+
+void write_gpio(thread_context * context, char * args) {
+	int gpio_num=0;
+	int value=1;
+	args = read_int(args, &gpio_num);
+	args = read_int(args, &value);
+
+	if (value >= 1) value = 1;
+	else value = 0;
+
+	if (gpio_ptr==NULL) init_gpio();
+
+	gpio_function_set(gpio_ptr, gpio_num, GPIO_FUNC_OUT);
+
+	gpio_level_set(gpio_ptr, gpio_num, value);
+
+	if (debug) printf("Set GPIO %d to %d.\n", gpio_num, value);
+
 }
 
 
@@ -1874,65 +1969,54 @@ void execute_command(thread_context * context, char * command_line){
 			fly_in(context, arg);
 		}else if (strcmp(command, "fly_out")==0){
 			fly_out(context, arg);
-		} else if (strcmp(command, "progress") == 0) {
+		}else if (strcmp(command, "progress") == 0) {
 			progress(context, arg);
 		}else if(strcmp(command, "ambilight") == 0){
 			ambilight(context, arg);
 		}else if (strcmp(command, "slave_listen")==0){
 			slave_listen(context, arg);
-		} else if (strcmp(command, "set_pixel_color") == 0) {
+		}else if (strcmp(command, "set_pixel_color") == 0) {
 			set_pixel_color(context, arg);
-		}
-		else if (strcmp(command, "config_2D") == 0) {
+		}else if (strcmp(command, "config_2D") == 0) {
 			config_2D(context, arg);
-		}
-		else if (strcmp(command, "take_screenshot") == 0) {
+		}else if (strcmp(command, "take_screenshot") == 0) {
 			take_screenshot(context, arg);
-		}
-		else if (strcmp(command, "draw_image") == 0) {
+		}else if (strcmp(command, "draw_image") == 0) {
 			draw_image(context, arg);
-		}
-		else if (strcmp(command, "print_text") == 0) {
+		}else if (strcmp(command, "print_text") == 0) {
 			print_text(context, arg);
-		}
-		else if (strcmp(command, "cls") == 0) {
+		}else if (strcmp(command, "cls") == 0) {
 			cls(context, arg);
-		}
-		else if (strcmp(command, "change_layer") == 0) {
+		}else if (strcmp(command, "change_layer") == 0) {
 			change_layer(context, arg);
-		}
-		else if (strcmp(command, "message_board") == 0) {
+		}else if (strcmp(command, "message_board") == 0) {
 			message_board(context, arg);
-		}
-		else if (strcmp(command, "draw_rectangle") == 0) {
+		}else if (strcmp(command, "draw_rectangle") == 0) {
 			draw_rectangle(context, arg);
-		}
-		else if (strcmp(command, "draw_sharp_line") == 0) {
+		}else if (strcmp(command, "draw_sharp_line") == 0) {
 			draw_sharp_line(context, arg);
-		}
-		else if (strcmp(command, "draw_line") == 0) {
+		}else if (strcmp(command, "draw_line") == 0) {
 			draw_line(context, arg);
-		}
-		else if (strcmp(command, "draw_circle") == 0) {
+		}else if (strcmp(command, "draw_circle") == 0) {
 			draw_circle(context, arg);
-		}
-		else if (strcmp(command, "init_layer") == 0) {
+		}else if (strcmp(command, "init_layer") == 0) {
 			init_layer(context, arg);
-		}
-		else if (strcmp(command, "text_input") == 0) {
+		}else if (strcmp(command, "text_input") == 0) {
 			text_input(context, arg);
 		}else if (strcmp(command, "camera")==0){
 			camera(context, arg);
-		} else if (strcmp(command, "record_audio") == 0) {
+		}else if (strcmp(command, "record_audio") == 0) {
 			record_audio(context, arg);
-		}
-		else if (strcmp(command, "pulses") == 0) {
+		}else if (strcmp(command, "filter_audio") == 0){
+			filter_audio(context, arg);
+		}else if (strcmp(command, "pulses") == 0) {
 			audio_pulses(context, arg);
-		}
-		else if (strcmp(command, "light_organ") == 0) {
+		}else if (strcmp(command, "light_organ") == 0) {
 			light_organ(context, arg);
 		}else if (strcmp(command, "vu_meter")==0){
 			vu_meter(context, arg);
+		}else if (strcmp(command, "wave") ==0){
+			audio_wave(context, arg);
 		}else if (strcmp(command, "readjpg")==0){
 			readjpg(context, arg);
 		}else if (strcmp(command, "readpng")==0){
@@ -1953,6 +2037,12 @@ void execute_command(thread_context * context, char * command_line){
 			signal_thread(context, arg);
 		}else if (strcmp(command, "wait_ready_signal")==0){
 			wait_ready_signal(context, arg);
+		}else if (strcmp(command, "wait_gpio")==0){
+			wait_gpio(context, arg);
+		}else if (strcmp(command, "write_gpio")==0){
+			write_gpio(context, arg);
+		}else if (strcmp(command, "skip_render")==0){
+			skip_render(context, arg);
 		}else if (strcmp(command, "echo")==0){
 			echo(context, arg);
 		}else if (strcmp(command, "debug") == 0) {
@@ -1960,6 +2050,12 @@ void execute_command(thread_context * context, char * command_line){
 			else debug = 1;
 		}else if (strcmp(command, "reset") == 0){
 			reset_led_strings();
+		}else if (strcmp(command, "system") ==0){ //execute system command (run script)
+			if(enable_system_cmd){
+				system(arg);
+			}else{
+				fprintf(stderr, "System commands not enabled for security (%s), launch with -s parameter!\n", arg);
+			}
         }else if (strcmp(command, "exit")==0){
             printf("Exiting.\n");
             exit_program=1;

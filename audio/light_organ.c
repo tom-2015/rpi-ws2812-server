@@ -1,7 +1,8 @@
 #include "light_organ.h"
 #include "record.h"
 #include <pthread.h>
-//light_organ <channel>,<color_mode>,<color(s)>,<color_change_delay>,<duration>,<delay>,<start>,<len>
+//light_organ <channel>,<color_mode>,<color(s)>,<color_change_delay>,<duration>,<delay>,<start>,<len>,<random_width>,<gain>
+//https://github.com/yellobyte/LED-Strip-Light-Organ/blob/main/Software/src/main.cpp
 void light_organ(thread_context* context, char* args) {
 	const unsigned int MAX_COLORS = 255;
 	int channel = 0;
@@ -13,11 +14,12 @@ void light_organ(thread_context* context, char* args) {
 	int color_count = 0;
 	int color_mode = 2; //default some random colors
 	int color_change_delay = 60; //60 sec change color
-	float gain = 4.0;
+	int random_width = 0; //makes random bars in the light organ instead of full filled
+	float gain = 6.0;
 	int i;
 
 	if (!context->audio_capture.capturing) {
-		fprintf(stderr, "Error audio capture is not running on this thread. Use the audio_capture command to start capturing first!\n");
+		fprintf(stderr, "Error audio capture is not running on this thread. Use the record_audio command to start capturing first!\n");
 		return;
 	}
 
@@ -72,8 +74,10 @@ void light_organ(thread_context* context, char* args) {
 		args = read_int(args, &delay);
 		args = read_int(args, &start);
 		args = read_int(args, &len);
+		args = read_int(args, &random_width);
+		args = read_float(args, &gain);
 
-		if (debug) printf("light_organ %d,%d,%d,%d,%d,%d,%d,%d\n", channel, color_mode, color_count, color_change_delay, duration, delay, start, len);
+		if (debug) printf("light_organ %d,%d,%d,%d,%d,%d,%d,%d,%d\n", channel, color_mode, color_count, color_change_delay, duration, delay, start, len, random_width);
 
 		if (start >= get_led_count(channel)) start = 0;
 		if ((start + len) > get_led_count(channel)) len = get_led_count(channel) - start;
@@ -88,8 +92,13 @@ void light_organ(thread_context* context, char* args) {
 
 		volatile float low_pass_buffer=0; //here the record function will store the number of times threshold was reached
 		context->audio_capture.capture_dst_buffer = (void*)&low_pass_buffer;
-		context->audio_capture.dsp_mode = DSP_MODE_LOW_PASS;
+		context->audio_capture.dsp_mode = DSP_MODE_AVG;
 
+		int loops = 0;
+		int width = 1;
+		if (len > 10 ){
+			width = rand() % (len/10);
+		}
 		while ((((time(0) - start_time) < duration) || duration == 0) && context->end_current_command == 0) {
 			float low_pass_value;
 
@@ -119,8 +128,27 @@ void light_organ(thread_context* context, char* args) {
 				}
 			}
 
-			for (i = 0;i < len;i++) {
-				leds[start + i].brightness = intensity;
+			if (random_width){
+				if (loops == 10){
+					if (len < 10){
+						width = rand() % (len/10);
+					}else{
+						width = 1;
+					}
+					loops=0;
+				}
+				for (i = 0;i < len;i++) {
+					if ((i % (len/10)) >= width){
+						leds[start + i].brightness = intensity;
+					}else{
+						leds[start + i].brightness = 0;
+					}
+				}
+				loops++;
+			}else{
+				for (i = 0;i < len;i++) {
+					leds[start + i].brightness = intensity;
+				}
 			}
 
 			render_channel(channel);

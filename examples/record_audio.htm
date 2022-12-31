@@ -29,9 +29,39 @@ record_audio "plughw:CARD=Device,DEV=0"
 </code>
 </div>
 
+<P>
 Now audio will be recorded in internal buffer and you can start using audio effect commands.<br/>
-NOTE: the recording is thread dependend, this means if you want to create a second thread you'll also need to start a record command in that thread first.
+</P>
 
+Example:
+
+<div class="commands">
+<code>
+setup 1,50,3,0,255,18
+init
+record_audio "plughw:CARD=Capture,DEV=0",48000,2
+filter_audio 1,100
+do
+	light_organ 1,2,,10,60,,,,,10
+	vu_meter 1,,,60
+	pulses 1,0.02,2,,,10,,60
+loop
+</code>
+</div>
+
+<p>
+	With the filter_audio command you can apply a simple low pass, high pass or band pass filter.
+</p>
+
+<p>
+-The recording is thread dependend, if you want to create a second thread you'll also need to start a record command in that thread first. But you can forward recorded samples to <a href="stream_audio_multiple_threads.htm">other threads</a>. <br/>
+-If you get error "Cannot set parameters (Invalid argument)." this mostly means that the audio device doesn't support the requested sample rate. Try to launch the record command with different sample rate like: <br/>
+<div class="commands">
+<code>
+record_audio "plughw:CARD=Capture,DEV=0",48000,2
+</code>
+</div>
+</p>
 
 <p><a href="index.htm">Back</a></p>
 </body>

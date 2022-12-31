@@ -138,6 +138,32 @@ render <channel>,<start>,<RRGGBBRRGGBB...>
 # <RRGGBBRRGGBB...> Color to change the led at start Red+green+blue (no default)
 ```
 
+* `system` Execute command as a system shell command, requires to start program with -s parameter.
+
+```
+system <command>
+
+# <command>         The shell command to execute.
+```
+
+* `wait_gpio` Waits for a GPIO to become value (sets GPIO as input).
+
+```
+ait_gpio <gpio_num>, <value>
+
+# <gpio_num>        The broadcom GPIO number, see https://pinout.xyz.
+# <value>           The value the GPIO must have before continue code (0=low, 1=high).
+```
+
+* `write_gpio` Changes the output value of a GPIO (sets GPIO as output).
+
+```
+write_gpio <gpio_num>,<value>
+
+# <gpio_num>        The broadcom GPIO number, see https://pinout.xyz.
+# <value>           The value to write to the GPIO (0=low, 1=high).
+```
+
 # Thread commands
 
 * `set_thread_exit_type` This will set if the thread should be aborted when the kill_thread or ini_thread command is executed for the <thread_id> parameter
@@ -150,9 +176,9 @@ set_thread_exit_type <thread_id>,<type>
                            1 - wait until all commands completed, then exit
 ```
 
-* `wait_thread` wait for a given thread to finish all commands (the exit type is ignored here)
+* `wait_thread_exit` wait for a given thread to finish all commands (the exit type is ignored here)
 ```
-wait_thread <thread_id>
+wait_thread_exit <thread_id>
 
 # <thread_id>  The thread number (1-63)
 ```
@@ -563,7 +589,7 @@ This will paint a JPG, PNG or (animated) GIF to the LED matrix.
 # <src_width>		Source width, change together with src_x if you want only a part of the image file to be painted
 # <src_height> 		Source height, change together with src_width
 # <speed>			If the file is an animated gif, specify here a speed multiplier, for example 2 will play at twice the speed. default is 1
-# <max_loops>		for animated gif only Stop repeating the animation after max_loops, default 0 = inifite loops or loops defined in the GIF
+# <max_loops>		for animated gif only stop repeating the animation after max_loops, default 0 = inifite loops or loops defined in the GIF
 ```
 
 * `draw_line` draws an image file
@@ -718,9 +744,12 @@ record_audio <device>,<sample_rate>,<sample_count>,<channels>
 
 # <device>			Audio device, use arecord -L to list device and use the "plughw:*" device.
 # <sample_rate>		Here you can change the number of samples per second, default is 24000. Higher will require more CPU but better results with high frequency.
-# <sample_count>	Number of samples to store in the internal buffer before forwarding to DSP. Default is 1024 and you better leave it like that.
 # <channels>		Number of audio channels, default is 2 (stereo)
+# <sample_count>	Number of samples to store in the internal buffer before forwarding to DSP. Default is 1024 and you better leave it like that.
+# <gain>            Multiply samples with this value (float), may slow down the Pi.
 ```
+
+Use device name thread://<thread_id> to get samples captured in another thread (see examples/stream_audio_multiple_threads.htm).
 
 Since version 6.2 you can use udp port or named pipe as audio input device.
 For example: udp://9000 as device will listen on local port 9000. External program can then send raw audio samples to this port.
@@ -749,6 +778,7 @@ light_organ <channel>,<color_mode>,<color(s)>,<color_change_delay>,<duration>,<d
 # <delay>				Delay between rendering of the strip. default is 25ms increase to make flashing slower
 # <start>				Start at this LED number
 # <len>					Effect for this number of LEDs starting at start
+# <gain>                Multiply intensity by this gain value (float, default val = 4)
 ```
 Color modes:  
 0 = 1 fixed color  
@@ -756,7 +786,7 @@ Color modes:
 2 = random colors provided in the color(s) argument, color(s) argument can be left empty for some default colors.  
 3 = keep existing color in the strip, this must be set first  
 
-* `pulses` Generates wave pattern on the LED strip (like a music driven chaser)
+* `pulses` Generates wave pattern on the LED strip (like a music driven chaser), only if n samples are above a certain threshold
 
 ```
 pulses <channel>,<threshold>,<color_mode>,<color(s)>,<delay>,<color_change_delay>,<direction>,<duration>,<min_brightness>,<start>,<len>
@@ -774,7 +804,25 @@ pulses <channel>,<threshold>,<color_mode>,<color(s)>,<delay>,<color_change_delay
 # <len>					Effect for this number of LEDs starting at start
 ```
 
-* `vu_meter` 
+* `wave` Generates direct low pass audio wave on the strip, intensity will be set according to the audio level.
+
+```
+wave <channel>,<gain>,<color_mode>,<color(s)>,<delay>,<color_change_delay>,<direction>,<duration>,<min_brightness>,<start>,<len>
+
+# <channel>				Channel number
+# <gain>			    Multiply the low pass output by this gain value (float, default is 4).
+# <color_mode>			Sets how changing of color should behave, see light_organ for possible values (default 2).
+# <color(s)>			Give color or multiple colors like FF0000 (red) or FF000000FF000000FF (red,green,blue)
+# <delay>				Delay between rendering of the strip, default 25ms. Decrease to make wave go faster but increase CPU load
+# <color_change_delay>	Number of seconds to wait before changing the color
+# <direction>			Chaser go forward or backwards
+# <duration>			Number of seconds before automatic exit of the command, 0 to run forever.
+# <min_brightness>		Minimum level of brightness or LEDs will be turned off (default is 20 max 255).
+# <start>				Start at this LED number
+# <len>					Effect for this number of LEDs starting at start
+```
+
+* `vu_meter` Generates a volume meter effect on a LED strip
 
 ```
 vu_meter <channel>,<color_mode>,<color(s)>,<color_change_delay>,<duration>,<delay>,<brightness>,<start>,<len>
@@ -795,3 +843,13 @@ Color modes:
 2 = random colors provided in the color(s) argument, color(s) argument can be left empty for some default colors.  
 3 = keep existing color in the strip, this must be set first   
 4 = Classic VU meter colors (green - yellow - orange - red)  
+
+* `filter_audio` Apply a low/high pass filter or both on the incoming audio samples.
+
+```
+filter_audio <mode>,<low_freq>,<high_freq>
+
+# <mode>				1: low pass, 2: high pass, 3: band pass.
+# <low_freq>			The low pass cut off frequency (use 0 if mode =2).
+# <high_freq>			The high pass filter start frequency (use 0 if mode=1).
+```

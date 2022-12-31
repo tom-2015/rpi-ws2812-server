@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css"/>
+		<title>WS2812 Server - recording audio to multiple threads</title>
+	</head>
+<body>
+
+<p>
+You can use one thread to record audio and stream it to other threads, each of these threads can be connected to a LED string that runs a different effect like light organ, pulses, etc...
+<br/>
+In this example the main thread will only be used to record/capture audio from the sound card. The main thread will feed the samples to thread 1 and thread 2.<br/>
+Thread 1 and 2 will apply a different filter and different effect.
+<div class="commands">
+<code>
+setup 1,300,3,0,255,18
+setup 2,100,5,0,255,19
+init
+
+record_audio "plughw:CARD=Capture,DEV=0",48000,2
+
+thread_start 1
+    record_audio "thread://0"
+    filter_audio 1,100
+    do
+            light_organ 1	
+    loop
+thread_stop
+
+thread_start 2
+    record_audio "thread://0"
+    filter_audio 2,0,1500
+    do
+        vu_meter 2,,,60	
+    loop
+thread_stop
+
+#keep main thread running!
+do
+    delay 100
+loop
+</code>
+</div>
+
+<p><a href="index.htm">Back</a></p>
+</body>
+</html>

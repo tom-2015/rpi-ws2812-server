@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css"/>
+		<title>WS2812 Server - run script</title>
+	</head>
+<body>
+<p>
+In this runs external script my_script.sh with the system command.<br/>
+
+</p>
+
+<p>
+    By default the system command is disabled, you must start the ws2812svr program with the -s parameter!<br/>
+    sudo ./ws2812svr -s<br/>
+    If you run it as a service, you must edit the /etc/ws2812svr.conf file and change: allow_system_cmd=1
+</p>
+
+<div class="commands">
+<code>
+    setup 1,30,3
+    init
+    fill 1,FF0000
+    render
+    system ./my_script.sh
+	fill 1,00FF00
+	render
+	delay 1000
+	fill 1,0000FF
+	render
+	delay 1000
+</code>
+</div>
+
+<p><a href="index.htm">Back</a></p>
+</body>
+</html>

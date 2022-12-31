@@ -1,4 +1,13 @@
 
+# Version 7.4
+* Bug fixes with virtual channels
+* Improve audio signal processing
+* Add support to stream audio samples to multiple threads
+* Fix bugs in documentation
+* Python code for the Raspberry Pi Pico W to operate as a slave network channel.
+
+# Version 7.3
+* Add new command "wave" as alternative to "pulses", it renders a low pass audio wave directly to the strip.
 
 # Version 7.2
 * Add new hardware version for Raspberry Pi 4 and Raspberry Pi Zero.

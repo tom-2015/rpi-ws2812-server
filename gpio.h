@@ -65,12 +65,20 @@ typedef struct
 
 #define GPIO_OFFSET                              (0x00200000)
 
+#define GPIO_ALT_FUNC0 0
+#define GPIO_ALT_FUNC1 1
+#define GPIO_ALT_FUNC2 2
+#define GPIO_ALT_FUNC3 3
+#define GPIO_ALT_FUNC4 4
+#define GPIO_ALT_FUNC5 5
+#define GPIO_FUNC_IN 6
+#define GPIO_FUNC_OUT 7
 
 static inline void gpio_function_set(volatile gpio_t* gpio, uint8_t pin, uint8_t function)
 {
     int regnum = pin / 10;
     int offset = (pin % 10) * 3;
-    uint8_t funcmap[] = { 4, 5, 6, 7, 3, 2 };  // See datasheet for mapping
+    uint8_t funcmap[] = { 4, 5, 6, 7, 3, 2, 0, 1 };  // See datasheet for mapping
 
     if (function > 5)
     {
@@ -94,6 +102,14 @@ static inline void gpio_level_set(volatile gpio_t* gpio, uint8_t pin, uint8_t le
     {
         gpio->clr[regnum] = (1 << offset);
     }
+}
+
+static inline int gpio_level_read(volatile gpio_t* gpio, uint8_t pin)
+{
+    int regnum = pin >> 5;
+    int offset = (pin & 0x1f);
+
+    return (gpio->lev[regnum] & (1 << offset))!=0 ? 1 : 0;
 }
 
 static inline void gpio_output_set(volatile gpio_t* gpio, uint8_t pin, uint8_t output)
